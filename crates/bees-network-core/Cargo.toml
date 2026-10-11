@@ -1,8 +1,8 @@
 [package]
-name = "relaymesh-core"
+name = "bees-network-core"
 version = "0.1.0"
 edition = "2021"
-description = "RelayMesh CKB pure validation logic (no syscalls, unit-testable). Mirrors shared-ts."
+description = "Bees Network CKB pure validation logic (no syscalls, unit-testable). Mirrors shared-ts."
 
 [dependencies]
 ckb-hash = "=0.112.1"

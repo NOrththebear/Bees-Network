@@ -21,7 +21,7 @@ use ckb_std::{
     high_level::{load_cell_data, load_cell_lock_hash, QueryIter},
     syscalls,
 };
-use relaymesh_core::{
+use bees_network_core::{
     check_registry_transition, ckb_hash,
     codec::decode_registry,
     sysparse::{parse_outpoint, parse_script_args},

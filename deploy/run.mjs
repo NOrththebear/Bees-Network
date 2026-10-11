@@ -274,7 +274,7 @@ async function main() {
     const leaves = totals.map((t) => shared.pointsLeaf(t.nodeId, t.netPts, t.upPts, t.bytes));
     const root = shared.merkleRoot(leaves);
     const evidence = {
-      schema: "relaymesh/epoch-v1", chainId: "ckb-devnet", epochId: EPOCH_ID,
+      schema: "bees-network/epoch-v1", chainId: "ckb-devnet", epochId: EPOCH_ID,
       perNode: totals, jobsSample: [], spotChecks: [],
     };
     const evHash = shared.evidenceHash(shared.canonicalJson(evidence));

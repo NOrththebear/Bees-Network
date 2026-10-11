@@ -225,7 +225,7 @@ async function main() {
     ].map((t) => ({ ...t, ...computePoints(t.bytes, t.beats) }));
     const leaves = totals.map((t) => pointsLeaf(t.nodeId, t.netPts, t.upPts, t.bytes));
     const mroot = merkleRoot(leaves);
-    const evidence = { schema: "relaymesh/epoch-v1", chainId: "ckb-pudge-testnet", epochId: EPOCH_ID, perNode: totals, jobsSample: [], spotChecks: [] };
+    const evidence = { schema: "bees-network/epoch-v1", chainId: "ckb-pudge-testnet", epochId: EPOCH_ID, perNode: totals, jobsSample: [], spotChecks: [] };
     const evHash = evidenceHash(canonicalJson(evidence));
     const POOL = 100000000000000000000n;
     const { scriptHash: sh } = await import("./chain.mjs");

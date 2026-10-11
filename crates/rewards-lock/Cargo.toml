@@ -9,5 +9,5 @@ path = "src/main.rs"
 
 [dependencies]
 ckb-std = { version = "0.16", default-features = false, features = ["allocator", "ckb-types"] }
-relaymesh-core = { path = "../relaymesh-core" }
+bees-network-core = { path = "../bees-network-core" }
 

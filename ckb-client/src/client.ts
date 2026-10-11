@@ -1,7 +1,7 @@
-// @relaymesh/ckb-client — pure coordinator helpers (no @ckb-ccc import).
+// @bees-network/ckb-client — pure coordinator helpers (no @ckb-ccc import).
 // For live wiring see README "CCC integration" (Transaction.from,
 // completeInputsByCapacity/ByUdt, completeFeeBy, findCellsByType,
-// waitTransaction). All hashes mirror crates/relaymesh-core.
+// waitTransaction). All hashes mirror crates/bees-network-core.
 import {
   ckbHashBytes,
   bytesToHex,

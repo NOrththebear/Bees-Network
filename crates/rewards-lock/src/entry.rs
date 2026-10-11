@@ -23,9 +23,9 @@ use ckb_std::{
     high_level::{load_cell_data, load_cell_lock_hash},
     syscalls,
 };
-use relaymesh_core::ckb_hash;
-use relaymesh_core::codec::{decode_epoch, decode_share, EPOCH_DATA_SIZE};
-use relaymesh_core::sysparse::{parse_script_args, parse_witness_input_type};
+use bees_network_core::ckb_hash;
+use bees_network_core::codec::{decode_epoch, decode_share, EPOCH_DATA_SIZE};
+use bees_network_core::sysparse::{parse_script_args, parse_witness_input_type};
 
 #[repr(i8)]
 enum Error {

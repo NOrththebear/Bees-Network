@@ -1,7 +1,7 @@
 //! Fixed-pack codecs for v0.1 on-chain data.
 //!
 //! v0.1 uses fixed little-endian packs (cheap to parse in CKB-VM).
-//! `schemas/relaymesh.mol` is the forward Molecule spec for indexers/SDKs;
+//! `schemas/bees-network.mol` is the forward Molecule spec for indexers/SDKs;
 //! field order and sizes below mirror those tables 1:1 so migration is mechanical.
 
 use super::{NodeEntry, ZERO32};

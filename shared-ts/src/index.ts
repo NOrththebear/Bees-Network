@@ -1,4 +1,4 @@
-// @relaymesh/ckb-shared — mirrors crates/relaymesh-core (blake2b personal=ckb-default-hash).
+// @bees-network/ckb-shared — mirrors crates/bees-network-core (blake2b personal=ckb-default-hash).
 // No @ckb-ccc dependency here; ckb-client/ holds chain wiring.
 import { blake2b } from "@noble/hashes/blake2b";
 
@@ -178,7 +178,7 @@ export function evidenceHash(canonicalJsonStr: string): string {
   return bytesToHex(ckbHashBytes(te.encode(canonicalJsonStr)));
 }
 
-// ---- v0.1 fixed-pack codecs (must match crates/relaymesh-core/src/codec.rs) ----
+// ---- v0.1 fixed-pack codecs (must match crates/bees-network-core/src/codec.rs) ----
 
 export interface NodeEntry {
   nodeId: string;

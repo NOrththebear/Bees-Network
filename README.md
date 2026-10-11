@@ -1,4 +1,4 @@
-# RelayMesh on CKB (v0.1)
+# Bees Network on CKB (v0.1)
 
 Port of [RelayMesh](https://github.com/duongja/RelayMesh) (`MeshRegistry` + `EpochLedger` +
 `MeshRewards`, BOT EVM-968) to Nervos CKB Cell model. No contract storage — everything is
@@ -10,17 +10,17 @@ Built against `docs.nervos.org` (`cell-model`, `script/*`, `ecosystem-scripts/xu
 ## Layout
 
 ```
-schemas/relaymesh.mol      # canonical Molecule spec (forward; v0.1 on-chain uses fixed packs below)
-crates/relaymesh-core/     # pure validation logic, no syscalls (cargo test, 9 tests)
-  src/lib.rs               # ckbhash, nodeIdFor, points, sorted-pair merkle, registry/epoch checks
-  src/codec.rs             # v0.1 fixed-pack codecs (Registry 68+81N B, Epoch 158 B, Share 112 B)
-  src/entry.rs→examples/   # examples/print-vectors.rs — cross-language test vectors
-crates/registry-type/      # Type script: registry singleton (genesis via Type-ID rule, append/flip)
-crates/epoch-type/         # Type script: per-epoch mint-once cell (any consume rejects)
-crates/rewards-lock/       # Lock script: Merkle claim verify + wallet-bound + Epoch CellDeps check
-shared-ts/                 # TS mirror of relaymesh-core (blake2b personal=ckb-default-hash), 7 tests
-ckb-client/                # coordinator helpers: args/data builders, REGISTRY_ID, capacity, proofs; 4 tests
-dist/                      # stripped riscv64imac binaries (deploy these as code cells, hash_type=data2)
+schemas/bees-network.mol      # canonical Molecule spec (forward; v0.1 on-chain uses fixed packs below)
+crates/bees-network-core/     # pure validation logic, no syscalls (cargo test, 9 tests)
+  src/lib.rs                  # ckbhash, nodeIdFor, points, sorted-pair merkle, registry/epoch checks
+  src/codec.rs                # v0.1 fixed-pack codecs (Registry 68+81N B, Epoch 158 B, Share 112 B)
+  src/entry.rs→examples/      # examples/print-vectors.rs — cross-language test vectors
+crates/registry-type/         # Type script: registry singleton (genesis via Type-ID rule, append/flip)
+crates/epoch-type/            # Type script: per-epoch mint-once cell (any consume rejects)
+crates/rewards-lock/          # Lock script: Merkle claim verify + wallet-bound + Epoch CellDeps check
+shared-ts/                    # TS mirror of bees-network-core (blake2b personal=ckb-default-hash), 7 tests
+ckb-client/                   # coordinator helpers: args/data builders, REGISTRY_ID, capacity, proofs; 4 tests
+dist/                         # stripped riscv64imac binaries (deploy these as code cells, hash_type=data2)
 ```
 
 ## Audited v0.1 binaries
@@ -49,12 +49,12 @@ here is a docker wrapper that only mounts `/home/agate`, so this repo must live 
 ## Verify
 
 ```bash
-cargo test -p relaymesh-core            # 14 tests: points, nodeId, merkle, registry, epoch, rewards, codecs, sysparse(+real entities)
+cargo test -p bees-network-core            # 14 tests: points, nodeId, merkle, registry, epoch, rewards, codecs, sysparse(+real entities)
 cargo check -p registry-type -p epoch-type -p rewards-lock -p always-success
-moleculec --language rust --schema-file schemas/relaymesh.mol > /dev/null
+moleculec --language rust --schema-file schemas/bees-network.mol > /dev/null
 (cd shared-ts && npm install && npm test)   # 7 tests
 (node --test ckb-client/test/*.test.mjs)   # 4 tests
-cargo run -p relaymesh-core --example print-vectors   # RS vectors
+cargo run -p bees-network-core --example print-vectors   # RS vectors
 node -e "import('./shared-ts/src/index.ts').then(...)" # must match RS + python hashlib(blake2b,person)
 ```
 
@@ -81,7 +81,7 @@ fixtures/<case>.json` executes the real RISC-V binaries in CKB-VM:
 All binaries verified AMO-free (`objdump | grep amo/lr/sc` → 0): CKB-VM is
 RV64IMC without the A extension, and `bytes::Bytes` refcounting emits AMO. Scripts
 therefore parse `Script`/`WitnessArgs` from raw syscall buffers
-(`relaymesh-core/src/sysparse.rs`, tested against real `ckb-gen-types` entities).
+(`bees-network-core/src/sysparse.rs`, tested against real `ckb-gen-types` entities).
 
 Two load-bearing encoding facts this caught (both were wrong in v0.1 and are now
 covered by real-entity tests):
@@ -106,7 +106,7 @@ TS silently hashed **without** personalization and diverged from Rust/Python.)
 ```ts
 import { ccc } from "@ckb-ccc/ccc";
 import { computeRegistryId, registryTypeScript, epochTypeScript, rewardsLockScript,
-         buildRegistryGenesisData, encodeProofForWitness } from "@relaymesh/ckb-client";
+         buildRegistryGenesisData, encodeProofForWitness } from "@bees-network/ckb-client";
 
 // deploy: dist/* -> code cells (offckb deploy --network devnet|testnet), record CODE_HASHES
 // genesis: firstInput = tx.inputs[0].previousOutput

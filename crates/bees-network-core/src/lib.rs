@@ -1,4 +1,4 @@
-//! RelayMesh CKB pure validation logic.
+//! Bees Network CKB pure validation logic.
 //!
 //! No CKB syscalls here so `cargo test` runs natively.
 //! On-chain wrappers in registry-type / epoch-type / rewards-lock
@@ -17,7 +17,7 @@ use alloc::{string::String, vec::Vec};
 pub mod codec;
 pub mod sysparse;
 
-pub const SCHEMA: &[u8] = b"relaymesh/epoch-v1";
+pub const SCHEMA: &[u8] = b"bees-network/epoch-v1";
 pub const ZERO32: [u8; 32] = [0u8; 32];
 
 /// ckbhash(bytes) -> 32 bytes.

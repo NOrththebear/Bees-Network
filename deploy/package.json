@@ -1,8 +1,8 @@
 {
-  "name": "@relaymesh/deploy",
+  "name": "@bees-network/deploy",
   "version": "0.1.0",
   "private": true,
-  "description": "RelayMesh CKB devnet deploy + lifecycle scripts (miniature coordinator chain layer).",
+  "description": "Bees Network CKB devnet deploy + lifecycle scripts (miniature coordinator chain layer).",
   "type": "module",
   "scripts": {
     "run": "node run.mjs"

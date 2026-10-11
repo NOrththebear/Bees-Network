@@ -1,7 +1,7 @@
 {
-  "name": "@relaymesh/ckb-client",
+  "name": "@bees-network/ckb-client",
   "version": "0.1.0",
-  "description": "RelayMesh CKB coordinator helpers: script args/data builders + CCC wiring snippets. Pure (no chain deps); tests import shared-ts via relative path.",
+  "description": "Bees Network CKB coordinator helpers: script args/data builders + CCC wiring snippets. Pure (no chain deps); tests import shared-ts via relative path.",
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.mjs"

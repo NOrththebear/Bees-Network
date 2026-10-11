@@ -98,8 +98,8 @@ describe("evidence", () => {
 describe("cross-check with Rust vectors", () => {
   it("ckbhash sanity (BLAKE2b personal differs from plain)", () => {
     // sanity: personalization matters; just assert determinism + length
-    const h = bytesToHex(ckbHashBytes(te.encode("relaymesh/epoch-v1")));
+    const h = bytesToHex(ckbHashBytes(te.encode("bees-network/epoch-v1")));
     assert.equal(h.length, 66);
-    assert.equal(bytesToHex(ckbHashBytes(te.encode("relaymesh/epoch-v1"))), h);
+    assert.equal(bytesToHex(ckbHashBytes(te.encode("bees-network/epoch-v1"))), h);
   });
 });

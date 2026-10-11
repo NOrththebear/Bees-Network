@@ -18,7 +18,7 @@ use ckb_std::{
     high_level::{load_cell_data, load_cell_lock_hash, QueryIter},
     syscalls,
 };
-use relaymesh_core::{
+use bees_network_core::{
     check_epoch_mint,
     codec::decode_epoch,
     sysparse::parse_script_args,

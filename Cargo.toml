@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "crates/relaymesh-core",
+    "crates/bees-network-core",
     "crates/registry-type",
     "crates/epoch-type",
     "crates/rewards-lock",
