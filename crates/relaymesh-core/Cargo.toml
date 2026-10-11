@@ -1,0 +1,12 @@
+[package]
+name = "relaymesh-core"
+version = "0.1.0"
+edition = "2021"
+description = "RelayMesh CKB pure validation logic (no syscalls, unit-testable). Mirrors shared-ts."
+
+[dependencies]
+ckb-hash = "=0.112.1"
+
+[dev-dependencies]
+hex = "0.4"
+ckb-gen-types = "=0.119.0"

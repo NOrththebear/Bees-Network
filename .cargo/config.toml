@@ -1,0 +1,4 @@
+# CKB-VM has no A extension (single-threaded). Disable atomics for riscv so
+# LLVM emits __atomic_* libcalls, resolved by ckb_std::dummy_atomic.
+[target.riscv64imac-unknown-none-elf]
+rustflags = ["-C", "target-feature=-a"]

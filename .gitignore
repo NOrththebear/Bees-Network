@@ -1,0 +1,27 @@
+# Rust build output
+/target/
+**/*.rs.bk
+
+# CKB devnet chain data + node logs (large, machine-local)
+devnet/
+*.log
+
+# Node dependencies (reinstall via npm)
+/node_modules/
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
+
+# Secrets (never commit real keys)
+/.env
+.env.*
+*.pem
+*.key

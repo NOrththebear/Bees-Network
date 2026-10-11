@@ -1,0 +1,35 @@
+{
+  "spent": [
+    "0x77d5a8a46ed04dd1963fc79df2ecbd6bdf063b0b4c103904505d89687434678f:0x0",
+    "0x24c1237099d5fa46a570177a05a19a96803f248cc618f0439b49d43de6b4eea5:0x0"
+  ],
+  "deploy": null,
+  "xudtCode": {
+    "tx_hash": "0x8737612c92b3e3d41b460326928b7dd060e43a73caf2e68cd351f95ed4e2a380",
+    "index": "0x0"
+  },
+  "opChange": {
+    "tx_hash": "0x77195bacbf3b919330647d74e7a7e35fbd5b8b8d229ae3cfe56163954d0d308f",
+    "index": "0x1"
+  },
+  "mint": {
+    "tx_hash": "0x77195bacbf3b919330647d74e7a7e35fbd5b8b8d229ae3cfe56163954d0d308f",
+    "index": "0x0"
+  },
+  "moved": {
+    "tx_hash": "0xd7ccdc14702531f6e7f45d9ce6b9aa06a594675459651638af1741c957d33fe8",
+    "index": "0x0"
+  },
+  "opXudt": {
+    "tx_hash": "0xd7ccdc14702531f6e7f45d9ce6b9aa06a594675459651638af1741c957d33fe8",
+    "index": "0x1"
+  },
+  "alwaysLock": {
+    "code_hash": "0xf9f720d4042162130a856dcd8a7c626f5bf5c4b5f11cce2b81f5536b9fe52463",
+    "hash_type": "data2",
+    "args": "0x"
+  },
+  "split": {
+    "tx_hash": "0x0bc90204c3171ae5f04d556a813eb4f13b993f3cd80dc6803f7e46f10154ff7d"
+  }
+}

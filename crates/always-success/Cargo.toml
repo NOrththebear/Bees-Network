@@ -1,0 +1,11 @@
+[package]
+name = "always-success"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "always-success"
+path = "src/main.rs"
+
+[dependencies]
+ckb-std = { version = "0.16", default-features = false, features = ["allocator", "ckb-types"] }

@@ -1,0 +1,13 @@
+{
+  "name": "@relaymesh/deploy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RelayMesh CKB devnet deploy + lifecycle scripts (miniature coordinator chain layer).",
+  "type": "module",
+  "scripts": {
+    "run": "node run.mjs"
+  },
+  "dependencies": {
+    "@noble/curves": "1.7.0"
+  }
+}
