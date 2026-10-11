@@ -1,4 +1,4 @@
-// RelayMesh CKB devnet lifecycle: deploy -> registry -> register x2 -> epoch -> fund -> claim.
+// Bees Network CKB devnet lifecycle: deploy -> registry -> register x2 -> epoch -> fund -> claim.
 // State in journal.json (resume-safe). All OutPoints tracked manually (no indexer).
 // Usage: node run.mjs
 import { readFileSync, writeFileSync, existsSync } from "node:fs";

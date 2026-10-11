@@ -1,4 +1,4 @@
-// RelayMesh CKB canonical schemas (Molecule).
+// Bees Network CKB canonical schemas (Molecule).
 // ckbhash = Blake2b-256(personal="ckb-default-hash") over Molecule bytes.
 // All integers little-endian fixed arrays (no Molecule number type).
 

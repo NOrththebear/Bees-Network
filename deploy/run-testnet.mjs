@@ -1,4 +1,4 @@
-// RelayMesh CKB TESTNET (Pudge) lifecycle.
+// Bees Network CKB TESTNET (Pudge) lifecycle.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { rpc, scriptHash, signSighashGroups, sendAndWait, getLive } from "./chain.mjs";
 import {
