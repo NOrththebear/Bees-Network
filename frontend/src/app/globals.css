@@ -173,6 +173,33 @@
     min-width: 44px;
   }
 
+  /*
+   * Page + header offsets. These COMBINE the fixed clearance with the iOS
+   * safe-area inset in a single declaration. Do NOT stack `pt-*` with
+   * `safe-area-top` (or `pb-*` with `safe-area-bottom`) on the same element:
+   * same-specificity `padding-*` rules override each other by stylesheet order,
+   * which once collapsed the top offset to 0 and slid content under the navbar.
+   */
+  .page-pad {
+    padding-top: calc(4rem + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+  }
+  .header-top {
+    padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  }
+  .banner-top {
+    padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+  }
+
+  /* Bee splash overlay dismiss fade (art animations live in the component). */
+  .bee-splash {
+    transition: opacity 0.45s ease;
+  }
+  .bee-splash-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
   .safe-area-top {
     padding-top: env(safe-area-inset-top);
   }
@@ -228,4 +255,51 @@
 
 .animate-pulse-gold {
   animation: pulse-gold 2s infinite;
+}
+
+/* Central node bee: gentle hover-bob + fast wing flutter. */
+@keyframes nodebee-bob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes nodebee-flutter {
+  from {
+    transform: rotate(-10deg);
+  }
+  to {
+    transform: rotate(12deg);
+  }
+}
+
+.nodebee-bob {
+  animation: nodebee-bob 2.4s ease-in-out infinite;
+}
+
+.nodebee-wing {
+  transform-box: fill-box;
+}
+
+.nodebee-wing-l {
+  transform-origin: 85% 90%;
+  animation: nodebee-flutter 0.19s ease-in-out infinite alternate;
+}
+
+.nodebee-wing-r {
+  transform-origin: 15% 90%;
+  animation: nodebee-flutter 0.16s ease-in-out infinite alternate-reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nodebee-bob,
+  .nodebee-wing-l,
+  .nodebee-wing-r,
+  .animate-pulse-gold,
+  .animate-ping {
+    animation: none;
+  }
 }

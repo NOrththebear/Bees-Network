@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 640" role="img" aria-labelledby="title desc">
+  <title id="title">Bee Network loading animation</title>
+  <desc id="desc">A golden bee hovers in the center of a rotating honey-gold loading ring on a dark background.</desc>
+  <defs>
+    <radialGradient id="backgroundGlow">
+      <stop offset="0" stop-color="#5a3900" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#08090b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff0a3"/>
+      <stop offset=".38" stop-color="#ffc52e"/>
+      <stop offset="1" stop-color="#d98900"/>
+    </linearGradient>
+    <linearGradient id="darkStripe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#303238"/>
+      <stop offset="1" stop-color="#090a0c"/>
+    </linearGradient>
+    <linearGradient id="wingFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff9db" stop-opacity=".92"/>
+      <stop offset="1" stop-color="#ffc62f" stop-opacity=".24"/>
+    </linearGradient>
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="beeShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".5"/>
+    </filter>
+    <clipPath id="abdomenClip"><ellipse cx="0" cy="0" rx="48" ry="34" transform="rotate(-36)"/></clipPath>
+  </defs>
+
+  <!-- Background is transparent; add a CSS/page background of #08090b if desired. -->
+  <ellipse cx="240" cy="295" rx="205" ry="205" fill="url(#backgroundGlow)"/>
+
+  <!-- Independent loading ring layer -->
+  <g id="loading-ring" transform="translate(240 290)" fill="none" stroke-linecap="round">
+    <circle r="136" stroke="#e8a514" stroke-opacity=".10" stroke-width="2"/>
+    <g id="ring-rotator" class="ring-rotator">
+      <path d="M -87 -105 A 136 136 0 0 1 79 -111" stroke="url(#gold)" stroke-width="7" filter="url(#softGlow)"/>
+      <path d="M 122 -58 A 136 136 0 0 1 119 62" stroke="#f8b91d" stroke-opacity=".55" stroke-width="5"/>
+      <path d="M 72 116 A 136 136 0 0 1 -61 122" stroke="url(#gold)" stroke-width="7"/>
+      <path d="M -125 53 A 136 136 0 0 1 -119 -61" stroke="#d58b08" stroke-opacity=".5" stroke-width="5"/>
+      <g id="loading-dots" fill="#ffc52e" stroke="none" filter="url(#softGlow)">
+        <circle cx="-105" cy="-88" r="4.5"/><circle cx="-91" cy="-101" r="4"/><circle cx="-75" cy="-112" r="3.5"/>
+        <circle cx="126" cy="79" r="4.5"/><circle cx="130" cy="61" r="4"/><circle cx="132" cy="43" r="3.5"/>
+        <circle cx="-83" cy="111" r="4.5"/><circle cx="-99" cy="101" r="4"/><circle cx="-113" cy="88" r="3.5"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Whole bee can bob independently from its wings -->
+  <g id="bee" class="bee-hover" transform="translate(244 288) rotate(-8)" filter="url(#beeShadow)">
+    <!-- Antennae -->
+    <g id="antennae" fill="none" stroke-linecap="round" stroke-width="4">
+      <path d="M 29 -26 Q 31 -57 49 -66" stroke="#343238"/>
+      <path d="M 46 -24 Q 56 -50 76 -53" stroke="#343238"/>
+      <circle cx="50" cy="-67" r="6.5" fill="url(#gold)" stroke="none"/>
+      <circle cx="77" cy="-54" r="6.5" fill="url(#gold)" stroke="none"/>
+    </g>
+
+    <!-- Wings are separate groups so a coding agent can animate them independently -->
+    <g id="left-wing" class="wing wing-left">
+      <path d="M -9 -8 C -44 -63 -92 -73 -95 -42 C -98 -18 -58 3 -17 9 Z" fill="url(#wingFill)" stroke="#ffe7a0" stroke-width="1.8"/>
+      <path d="M -16 -5 Q -52 -41 -86 -43" fill="none" stroke="#fff4c4" stroke-opacity=".7" stroke-width="1.2"/>
+    </g>
+    <g id="right-wing" class="wing wing-right">
+      <path d="M -7 -9 C -35 -75 -16 -106 8 -88 C 29 -71 20 -32 5 3 Z" fill="url(#wingFill)" stroke="#ffe7a0" stroke-width="1.8"/>
+      <path d="M -3 -13 Q -12 -51 3 -81" fill="none" stroke="#fff4c4" stroke-opacity=".7" stroke-width="1.2"/>
+    </g>
+
+    <!-- Stinger -->
+    <path id="stinger" d="M -39 21 L -63 35 L -49 9 Z" fill="#292a2e"/>
+
+    <!-- Abdomen and stripes -->
+    <g id="bee-abdomen" transform="translate(-26 17) rotate(-36)">
+      <ellipse cx="0" cy="0" rx="49" ry="34" fill="url(#gold)"/>
+      <g clip-path="url(#abdomenClip)">
+        <path d="M -20 -42 L -1 -42 L -1 42 L -20 42 Z" fill="url(#darkStripe)"/>
+        <path d="M 13 -42 L 32 -42 L 32 42 L 13 42 Z" fill="url(#darkStripe)"/>
+      </g>
+      <ellipse cx="0" cy="0" rx="49" ry="34" fill="none" stroke="#ffe28a" stroke-opacity=".65" stroke-width="1.5"/>
+    </g>
+
+    <!-- Head -->
+    <g id="bee-head">
+      <circle cx="23" cy="-4" r="34" fill="url(#gold)"/>
+      <circle cx="31" cy="-7" r="20" fill="#17181c"/>
+      <ellipse cx="36" cy="-16" rx="6.5" ry="8" fill="#fff"/>
+      <circle cx="23" cy="-4" r="34" fill="none" stroke="#ffe89a" stroke-opacity=".6" stroke-width="1.5"/>
+    </g>
+  </g>
+
+  <g id="brand-label" font-family="Inter, ui-sans-serif, system-ui, sans-serif" text-anchor="middle">
+    <text x="240" y="500" fill="#fff3cb" font-size="25" font-weight="650" letter-spacing="1.2">BEE NETWORK</text>
+    <text x="240" y="526" fill="#d9a82c" font-size="11" letter-spacing="3.2">CONNECTING INTELLIGENCE</text>
+    <g id="status-dots" fill="#ffc52e">
+      <circle class="status-dot dot-1" cx="222" cy="558" r="3"/>
+      <circle class="status-dot dot-2" cx="240" cy="558" r="3"/>
+      <circle class="status-dot dot-3" cx="258" cy="558" r="3"/>
+    </g>
+  </g>
+
+  <style>
+    /* Animation names and IDs are intentionally clear for easy editing. */
+    .bee-hover { transform-box: fill-box; transform-origin: center; animation: beeHover 2.2s ease-in-out infinite; }
+    .wing { transform-box: fill-box; transform-origin: 20% 75%; }
+    .wing-left { animation: wingFlutter .16s ease-in-out infinite alternate; }
+    .wing-right { animation: wingFlutter .13s ease-in-out infinite alternate-reverse; }
+    .ring-rotator { transform-box: fill-box; transform-origin: center; animation: ringRotate 8s linear infinite; }
+    .status-dot { opacity: .25; animation: dotPulse 1.2s ease-in-out infinite; }
+    .dot-2 { animation-delay: .2s; }
+    .dot-3 { animation-delay: .4s; }
+    @keyframes beeHover { 0%,100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-10px) rotate(-4deg); } }
+    @keyframes wingFlutter { from { transform: rotate(-9deg) scale(.96); opacity: .78; } to { transform: rotate(13deg) scale(1.04); opacity: 1; } }
+    @keyframes ringRotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes dotPulse { 0%,100% { opacity: .25; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.25); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; } }
+  </style>
+</svg>

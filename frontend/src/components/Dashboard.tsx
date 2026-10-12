@@ -1,6 +1,7 @@
 'use client';
 
 import { useBeesData } from '@/hooks/useBeesData';
+import { useFiberAccount } from '@/hooks/useFiberAccount';
 import { StatsGrid } from './StatsGrid';
 import { RegistrySection } from './RegistrySection';
 import { EpochsSection } from './EpochsSection';
@@ -8,7 +9,8 @@ import { RewardsSection } from './RewardsSection';
 import { BRAND } from '@/lib/config';
 
 export function Dashboard() {
-  const { registry, epochs, shares, loading, error, refetch } = useBeesData('testnet');
+  const { lockHash } = useFiberAccount('testnet');
+  const { registry, epochs, shares, loading, error, refetch } = useBeesData(lockHash, 'testnet');
 
   if (loading) {
     return (
@@ -84,7 +86,7 @@ export function Dashboard() {
         <EpochsSection epochs={epochs} />
       </div>
 
-      <RewardsSection shares={shares} epochs={epochs} />
+      <RewardsSection shares={shares} />
     </div>
   );
 }

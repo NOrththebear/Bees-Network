@@ -4,7 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui';
 import { Button } from '@/components/ui';
 import { useBeesData } from '@/hooks/useBeesData';
-import { useWallet } from '@/hooks/useWallet';
+import { useFiberAccount } from '@/hooks/useFiberAccount';
 
 const WifiIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} {...props}>
@@ -43,13 +43,12 @@ const ServerIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export default function AdvancedSettings() {
-  const { connectedWallet } = useWallet();
-  const userLockHash = connectedWallet?.lockHash;
+  const { account, lockHash: userLockHash, fiberStatus, fiberError, resetAccount } = useFiberAccount('testnet');
   const { registry, userHarvest, loading } = useBeesData(userLockHash, 'testnet');
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--surface)] pt-16 pb-24 px-4 safe-area-top safe-area-bottom">
+      <div className="min-h-screen bg-[var(--surface)] page-pad px-4">
         <Header title="Advanced Settings" showBack backHref="/account" />
         <main className="max-w-md mx-auto space-y-6 pt-4 pb-8">
           <div className="flex flex-col items-center justify-center h-64">
@@ -69,7 +68,7 @@ export default function AdvancedSettings() {
   const isRegistered = !!userNode;
 
   return (
-    <div className="min-h-screen bg-[var(--surface)] pt-16 pb-24 px-4 safe-area-top safe-area-bottom">
+    <div className="min-h-screen bg-[var(--surface)] page-pad px-4">
       <Header
         title="Advanced Settings"
         showBack
@@ -104,7 +103,8 @@ export default function AdvancedSettings() {
           )}
           {!isRegistered && (
             <div className="pt-4 border-t border-[var(--color-border)] text-center text-sm text-[var(--color-text-muted)]">
-              Connect your wallet to manage node settings
+              {account ? `Fiber ${fiberStatus} — node registration follows automatically.` : 'Creating Web5 account…'}
+              {fiberError && <p className="text-xs text-amber-700 mt-1">{fiberError}</p>}
             </div>
           )}
         </Card>
@@ -126,13 +126,13 @@ export default function AdvancedSettings() {
         </Card>
 
         <div className="flex flex-col items-center">
-          <Button variant="destructive" fullWidth className="max-w-xs gap-2" disabled={!isRegistered}>
+          <Button variant="destructive" fullWidth className="max-w-xs gap-2" disabled={!isRegistered} onClick={resetAccount}>
             <TrashIcon />
             DELETE ACCOUNT
           </Button>
           {!isRegistered && (
             <p className="text-xs text-[var(--color-text-muted)] mt-2 text-center max-w-xs">
-              No registered node found. Connect wallet and register a node first.
+              No registered node found. Your Web5 + Fiber identity is ready; registration follows.
             </p>
           )}
         </div>

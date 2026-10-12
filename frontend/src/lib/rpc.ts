@@ -1,10 +1,10 @@
 import { NETWORK, type NetworkKey } from './config';
 
 export interface RpcClient {
-  rpc(method: string, params: unknown[]): Promise<unknown>;
-  getTipHeader(): Promise<{ number: string; hash: string; timestamp: string }>;
-  getCells(searchKey: SearchKey, order: 'asc' | 'desc', limit: string, after?: string): Promise<{ objects: CellObject[]; last_cursor: string }>;
-  getLiveCell(outPoint: OutPoint, withData: boolean): Promise<{ cell: CellOutput | null; cell_output: CellOutput | null; data: string }>;
+  rpc(method: string, params: unknown[], opts?: RpcCallOptions): Promise<unknown>;
+  getTipHeader(opts?: RpcCallOptions): Promise<{ number: string; hash: string; timestamp: string }>;
+  getCells(searchKey: SearchKey, order: 'asc' | 'desc', limit: string, after?: string, opts?: RpcCallOptions): Promise<{ objects: CellObject[]; last_cursor: string }>;
+  getLiveCell(outPoint: OutPoint, withData: boolean, opts?: RpcCallOptions): Promise<{ cell: CellOutput | null; cell_output: CellOutput | null; data: string }>;
 }
 
 export interface SearchKey {
@@ -42,10 +42,14 @@ export interface CellObject {
   tx_index: string;
 }
 
+export interface RpcCallOptions {
+  signal?: AbortSignal;
+}
+
 function createRpcClient(baseUrl: string): RpcClient {
   const idCounter = { current: 1 };
   return {
-    async rpc(method: string, params: unknown[]) {
+    async rpc(method: string, params: unknown[], opts?: RpcCallOptions) {
       const res = await fetch(baseUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,19 +59,20 @@ function createRpcClient(baseUrl: string): RpcClient {
           method,
           params,
         }),
+        signal: opts?.signal,
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
       return json.result;
     },
-    async getTipHeader() {
-      return this.rpc('get_tip_header', []) as Promise<{ number: string; hash: string; timestamp: string }>;
+    async getTipHeader(opts?: RpcCallOptions) {
+      return this.rpc('get_tip_header', [], opts) as Promise<{ number: string; hash: string; timestamp: string }>;
     },
-    async getCells(searchKey: SearchKey, order: 'asc' | 'desc', limit: string, after?: string) {
-      return this.rpc('get_cells', [searchKey, order, limit, after]) as Promise<{ objects: CellObject[]; last_cursor: string }>;
+    async getCells(searchKey: SearchKey, order: 'asc' | 'desc', limit: string, after?: string, opts?: RpcCallOptions) {
+      return this.rpc('get_cells', [searchKey, order, limit, after], opts) as Promise<{ objects: CellObject[]; last_cursor: string }>;
     },
-    async getLiveCell(outPoint: OutPoint, withData: boolean) {
-      return this.rpc('get_live_cell', [outPoint, withData]) as Promise<{ cell: CellOutput | null; cell_output: CellOutput | null; data: string }>;
+    async getLiveCell(outPoint: OutPoint, withData: boolean, opts?: RpcCallOptions) {
+      return this.rpc('get_live_cell', [outPoint, withData], opts) as Promise<{ cell: CellOutput | null; cell_output: CellOutput | null; data: string }>;
     },
   };
 }
@@ -84,13 +89,16 @@ export function getIndexerClient(network: NetworkKey = 'testnet'): RpcClient {
 export async function findCellsByType(
   typeScript: Script,
   network: NetworkKey = 'testnet',
-  limit = '0x64'
+  limit = '0x64',
+  opts?: RpcCallOptions
 ): Promise<CellObject[]> {
   const client = getIndexerClient(network);
   const res = await client.getCells(
     { script: typeScript, script_type: 'type' },
     'desc',
-    limit
+    limit,
+    undefined,
+    opts
   );
   return res.objects;
 }
@@ -99,13 +107,16 @@ export async function findCellsByType(
 export async function findCellsByLock(
   lockScript: Script,
   network: NetworkKey = 'testnet',
-  limit = '0x64'
+  limit = '0x64',
+  opts?: RpcCallOptions
 ): Promise<CellObject[]> {
   const client = getIndexerClient(network);
   const res = await client.getCells(
     { script: lockScript, script_type: 'lock' },
     'desc',
-    limit
+    limit,
+    undefined,
+    opts
   );
   return res.objects;
 }
@@ -113,10 +124,11 @@ export async function findCellsByLock(
 /** Get live cell with data */
 export async function getLiveCell(
   outPoint: OutPoint,
-  network: NetworkKey = 'testnet'
+  network: NetworkKey = 'testnet',
+  opts?: RpcCallOptions
 ): Promise<{ cell: CellOutput | null; data: string }> {
   const client = getRpcClient(network);
-  const res = await client.getLiveCell(outPoint, true);
+  const res = await client.getLiveCell(outPoint, true, opts);
   return {
     cell: res.cell_output,
     data: res.data,

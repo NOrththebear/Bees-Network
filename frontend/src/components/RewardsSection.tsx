@@ -1,13 +1,12 @@
 'use client';
 
-import { ShareData, EpochData } from '@/hooks/useBeesData';
+import { ShareData } from '@/hooks/useBeesData';
 
 interface RewardsSectionProps {
   shares: ShareData[];
-  epochs: EpochData[];
 }
 
-export function RewardsSection({ shares, epochs }: RewardsSectionProps) {
+export function RewardsSection({ shares }: RewardsSectionProps) {
   if (shares.length === 0) {
     return (
       <div className="card">
@@ -64,19 +63,10 @@ export function RewardsSection({ shares, epochs }: RewardsSectionProps) {
       </div>
 
       <div className="mt-4 pt-4 border-t border-[var(--border)]">
-        <h4 className="text-sm font-medium text-[var(--text)] mb-3">Claim Verification</h4>
-        <p className="text-sm text-[var(--text-muted)] mb-3">
-          To claim rewards, the node operator provides a Merkle proof for their share leaf.
-          The Rewards Lock script verifies the proof against the epoch's rewards_root,
-          cross-checks the Epoch Cell in CellDeps, and enforces wallet-bound payout.
+        <p className="text-sm text-[var(--text-muted)]">
+          Live shares settle automatically over Fiber — no claim needed. The Epoch cell stays the
+          on-chain audit root.
         </p>
-        <div className="bg-[var(--surface-alt)] rounded-lg p-4 font-mono text-xs text-[var(--text-muted)] overflow-x-auto">
-          <pre>{`// Claim witness (input_type):
-// proof = concatenated 32-byte siblings
-// RewardsLock verifies: fold(leaf, proof) == rewards_root
-// Requires: Epoch Cell in cell_deps with matching rewards_root
-// Output lock == share.wallet_lock_hash (anti-theft)`}</pre>
-        </div>
       </div>
     </div>
   );

@@ -68,7 +68,7 @@ export default function AppSettings() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--surface)] pt-16 pb-24 px-4 safe-area-top safe-area-bottom">
+    <div className="min-h-screen bg-[var(--surface)] page-pad px-4">
       <Header
         title="App Settings"
         showBack

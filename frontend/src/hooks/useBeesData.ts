@@ -4,15 +4,32 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { NETWORK, CODE_HASHES, POINTS_CONFIG, type NetworkKey } from '@/lib/config';
 import { getIndexerClient, findCellsByType, findCellsByLock } from '@/lib/rpc';
 
-const FETCH_TIMEOUT = 8000;
+const FETCH_TIMEOUT = 15000;
 
-async function fetchWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+/**
+ * Runs `work` with a real timeout: aborts the underlying fetch via signal
+ * AND rejects via race, so a stalled request can never hang the UI forever.
+ */
+async function fetchWithTimeout<T>(
+  work: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), ms);
+  const timeout = new Promise<never>((_, reject) => {
+    const id = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+    // Don't let the timer itself keep workers alive.
+    if (typeof (id as unknown as { unref?: () => void }).unref === 'function') {
+      (id as unknown as { unref: () => void }).unref();
+    }
+  });
   try {
-    return await promise;
+    return await Promise.race([work(controller.signal), timeout]);
   } finally {
-    clearTimeout(timeoutId);
+    controller.abort();
   }
 }
 
@@ -77,33 +94,45 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
     setLoading(true);
     setError(null);
     try {
-      // Fetch registry cells by type script code_hash
-      const registryCells = await fetchWithTimeout(
-        findCellsByType(
-          { code_hash: CODE_HASHES.registry, hash_type: 'data2', args: '0x' },
-          network
-        ),
-        FETCH_TIMEOUT
+      // The three indexer queries are independent — run them in parallel so
+      // one slow query can't stack delays, all under a single timeout.
+      const [registryCells, epochCells, shareCells] = await fetchWithTimeout(
+        (signal) =>
+          Promise.all([
+            findCellsByType(
+              { code_hash: CODE_HASHES.registry, hash_type: 'data2', args: '0x' },
+              network,
+              '0x64',
+              { signal },
+            ),
+            findCellsByType(
+              { code_hash: CODE_HASHES.epoch, hash_type: 'data2', args: '0x' },
+              network,
+              '0x64',
+              { signal },
+            ),
+            findCellsByLock(
+              { code_hash: CODE_HASHES.rewards, hash_type: 'data2', args: '0x' },
+              network,
+              '0x64',
+              { signal },
+            ),
+          ]),
+        FETCH_TIMEOUT,
+        'Network data fetch',
       );
 
+      let registryNodes: NodeEntry[] = [];
       if (registryCells.length > 0) {
         const cell = registryCells[0];
         const data = decodeRegistryData(cell.output_data);
+        registryNodes = data.nodes;
         setRegistry({
           registryId: cell.output.type?.args || '0x' + '00'.repeat(32),
           operatorLockHash: data.operatorLockHash,
           nodes: data.nodes,
         });
       }
-
-      // Fetch epoch cells by type script code_hash
-      const epochCells = await fetchWithTimeout(
-        findCellsByType(
-          { code_hash: CODE_HASHES.epoch, hash_type: 'data2', args: '0x' },
-          network
-        ),
-        FETCH_TIMEOUT
-      );
 
       const epochData: EpochData[] = epochCells.map((cell) => {
         const decoded = decodeEpochData(cell.output_data);
@@ -114,15 +143,6 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
         };
       });
       setEpochs(epochData.sort((a, b) => b.epochId - a.epochId));
-
-      // Fetch reward shares by lock script code_hash
-      const shareCells = await fetchWithTimeout(
-        findCellsByLock(
-          { code_hash: CODE_HASHES.rewards, hash_type: 'data2', args: '0x' },
-          network
-        ),
-        FETCH_TIMEOUT
-      );
 
       const shareData: ShareData[] = shareCells.map((cell) => {
         const decoded = decodeShareData(cell.output_data);
@@ -144,10 +164,11 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
           userShares = userShares.filter(s => s.walletLockHash.toLowerCase() === userLockHash.toLowerCase());
         }
         
-        // Find user's node in registry
+        // Find user's node in the freshly decoded registry (not the possibly
+        // stale `registry` state, which hasn't updated yet on first load).
         let userNode: NodeEntry | undefined;
-        if (userLockHash && registry?.nodes) {
-          userNode = registry.nodes.find(n => n.walletLockHash.toLowerCase() === userLockHash.toLowerCase());
+        if (userLockHash) {
+          userNode = registryNodes.find(n => n.walletLockHash.toLowerCase() === userLockHash.toLowerCase());
         }
 
         // Sum all shares for this epoch
@@ -207,7 +228,10 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
   }, [userLockHash, network]);
 
   useEffect(() => {
-    fetchData();
+    // Scheduled (not synchronous) so the initial setLoading(true) inside
+    // fetchData doesn't cascade-render from within the effect body.
+    const t = setTimeout(() => void fetchData(), 0);
+    return () => clearTimeout(t);
   }, [fetchData]);
 
   return { registry, epochs, shares, userHarvest, loading, error, refetch: fetchData };

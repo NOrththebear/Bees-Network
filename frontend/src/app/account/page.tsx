@@ -5,7 +5,7 @@ import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui';
 import { Card } from '@/components/ui';
 import { useBeesData } from '@/hooks/useBeesData';
-import { useWallet } from '@/hooks/useWallet';
+import { useFiberAccount, formatFiberPubkey } from '@/hooks/useFiberAccount';
 import { formatAmountWithUnit } from '@/hooks/useBeesData';
 
 const UserIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -75,23 +75,29 @@ const ServerIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const BoltIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+  </svg>
+);
+
 export default function Account() {
-  const { connectedWallet } = useWallet();
-  const userLockHash = connectedWallet?.lockHash;
+  const { account, lockHash: userLockHash, fiberPubkey, fiberStatus, channels } = useFiberAccount('testnet');
   const { registry, userHarvest, loading, error } = useBeesData(userLockHash, 'testnet');
 
-  const deviceId = typeof window !== 'undefined' 
-    ? localStorage.getItem('bees_device_id') || 'BEE-7X9K-M2P4'
-    : 'BEE-7X9K-M2P4';
+  const deviceId = account?.deviceId
+    ?? (typeof window !== 'undefined'
+      ? localStorage.getItem('bees_device_id') || 'BEE-7X9K-M2P4'
+      : 'BEE-7X9K-M2P4');
 
-  // Get user's node from registry (match by wallet lock hash)
-  const userNode = userLockHash && registry?.nodes 
+  // Get user's node from registry (match by Fiber-derived lock hash)
+  const userNode = userLockHash && registry?.nodes
     ? registry.nodes.find(n => n.walletLockHash.toLowerCase() === userLockHash.toLowerCase())
     : registry?.nodes[0];
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[var(--surface)] pt-16 pb-24 px-4 safe-area-top safe-area-bottom">
+      <div className="min-h-screen bg-[var(--surface)] page-pad px-4">
         <Header title="Account" showBack backHref="/" />
         <main className="max-w-md mx-auto space-y-6 pt-4 pb-8">
           <div className="flex flex-col items-center justify-center h-64">
@@ -107,7 +113,7 @@ export default function Account() {
   const pointsDisplay = formatAmountWithUnit(userHarvest?.totalNectar || 0n);
 
   return (
-    <div className="min-h-screen bg-[var(--surface)] pt-16 pb-24 px-4 safe-area-top safe-area-bottom">
+    <div className="min-h-screen bg-[var(--surface)] page-pad px-4">
       <Header
         title="Account"
         showBack
@@ -115,55 +121,38 @@ export default function Account() {
       />
 
       <main className="max-w-md mx-auto space-y-6 pt-4 pb-8">
-        {/* Wallet Status / User Info */}
+        {/* Web5 Account / Fiber identity */}
         <Card>
           <div className="space-y-4">
-            {connectedWallet ? (
-              <>
-                <div className="flex items-center justify-between py-2 border-b border-[var(--color-border)]">
-                  <div className="flex items-center gap-3">
-                    <span className="p-2 rounded-lg bg-green-100 text-green-700">
-                      <CheckIcon />
-                    </span>
-                    <div>
-                      <p className="text-sm text-green-600">Connected Wallet</p>
-                      <p className="font-medium text-green-800">{connectedWallet.name}</p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-mono text-green-600">
-                    {connectedWallet.address.slice(0, 10)}...{connectedWallet.address.slice(-6)}
-                  </span>
+            <div className="flex items-center justify-between py-2 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-3">
+                <span className="p-2 rounded-lg bg-green-100 text-green-700">
+                  <CheckIcon />
+                </span>
+                <div>
+                  <p className="text-sm text-green-600">Web5 Account · Fiber {fiberStatus}</p>
+                  <p className="font-medium text-green-800 font-mono text-xs">
+                    {formatFiberPubkey(fiberPubkey)} · {channels.length} channels
+                  </p>
                 </div>
-                <div className="flex items-center justify-between py-2 border-b border-[var(--color-border)]">
-                  <div className="flex items-center gap-3">
-                    <span className="p-2 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
-                      <MailIcon />
-                    </span>
-                    <div>
-                      <p className="text-sm text-[var(--color-text-muted)]">CKB Address</p>
-                      <p className="font-medium text-[var(--color-text)] truncate max-w-[200px] font-mono">
-                        {connectedWallet.address}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronIcon />
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center justify-between py-2 border-b border-[var(--color-border)]">
-                <div className="flex items-center gap-3">
-                  <span className="p-2 rounded-lg bg-amber-100 text-amber-700">
-                    <UserIcon />
-                  </span>
-                  <div>
-                    <p className="text-sm text-amber-600">Not Connected</p>
-                    <p className="font-medium text-amber-800">Connect wallet to view account</p>
-                  </div>
-                </div>
-                <ChevronIcon />
               </div>
-            )}
-            
+              <ChevronIcon />
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-3">
+                <span className="p-2 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                  <MailIcon />
+                </span>
+                <div>
+                  <p className="text-sm text-[var(--color-text-muted)]">CKB Address (auto-created)</p>
+                  <p className="font-medium text-[var(--color-text)] truncate max-w-[200px] font-mono text-xs">
+                    {account?.ckbAddress || 'Deriving…'}
+                  </p>
+                </div>
+              </div>
+              <ChevronIcon />
+            </div>
+
             {userNode && (
               <>
                 <div className="flex items-center justify-between py-2 border-b border-[var(--color-border)]">
@@ -199,7 +188,7 @@ export default function Account() {
               </>
             )}
             
-            {!userNode && !connectedWallet && (
+            {!userNode && (
               <div className="flex items-center justify-between py-2">
                 <div className="flex items-center gap-3">
                   <span className="p-2 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
@@ -208,7 +197,7 @@ export default function Account() {
                   <div>
                     <p className="text-sm text-[var(--color-text-muted)]">Node ID</p>
                     <p className="font-medium text-[var(--color-text)] font-mono text-xs truncate max-w-[200px]">
-                      Not registered
+                      {account ? 'Registering…' : 'Not registered'}
                     </p>
                   </div>
                 </div>
@@ -254,6 +243,18 @@ export default function Account() {
 
         <Card>
           <div className="space-y-0">
+            <Link
+              href="/account/payments"
+              className="flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0 transition-colors hover:bg-[var(--color-surface-alt)]"
+            >
+              <div className="flex items-center gap-3">
+                <span className="p-2 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                  <BoltIcon />
+                </span>
+                <span className="font-medium text-[var(--color-text)]">Payments</span>
+              </div>
+              <ChevronIcon />
+            </Link>
             <Link
               href="/account/advanced"
               className="flex items-center justify-between py-3 border-b border-[var(--color-border)] last:border-0 transition-colors hover:bg-[var(--color-surface-alt)]"

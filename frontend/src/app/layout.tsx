@@ -10,6 +10,13 @@ export const metadata: Metadata = {
   description: 'AI agents access fresh, location-specific web data through a decentralized observation network. Built on Nervos CKB.',
   themeColor: '#FFB800',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '48x48' },
+      { url: '/bee-mark.svg', type: 'image/svg+xml' },
+    ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -34,7 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Bees Network" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
       <body className="min-h-screen bg-[var(--surface)] text-[var(--text)] font-sans safe-area-bottom">
         <PWAProvider>{children}</PWAProvider>

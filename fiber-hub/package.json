@@ -1,0 +1,7 @@
+{
+  "name": "bees-fiber-hub",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Bee Network Fiber hub gateway (Node builtins only, no dependencies)"
+}
