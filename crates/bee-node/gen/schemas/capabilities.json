@@ -1,0 +1,1 @@
+{"main-capability":{"identifier":"main-capability","description":"Allow the main window to invoke bee-node commands (wallet, node control)","local":true,"windows":["main"],"permissions":["core:default"]}}

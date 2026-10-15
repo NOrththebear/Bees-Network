@@ -12,10 +12,9 @@
  */
 
 import { secp256k1 } from '@noble/curves/secp256k1.js';
-import { blake2b } from '@noble/hashes/blake2.js';
 import { LOCKS } from './config';
 import type { NetworkKey } from './config';
-import { ckbHashHex, hexToBytes, bytesToHex } from './bees';
+import { ckbHash, ckbHashHex, hexToBytes, bytesToHex } from './bees';
 
 const STORAGE_KEY = 'bees_fiber_keys_v1';
 
@@ -78,9 +77,9 @@ export function ensureFiberKeys(): FiberKeys {
   return fresh;
 }
 
-/** blake160(pubkey) */
+/** blake160(pubkey) = ckbhash(pubkey)[0..20] (Blake2b-256 personal="ckb-default-hash") */
 function blake160(pubkey: Uint8Array): Uint8Array {
-  return blake2b(pubkey, { dkLen: 20 });
+  return ckbHash(pubkey).slice(0, 20);
 }
 
 /**

@@ -48,11 +48,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+              (function () {
+                if (!('serviceWorker' in navigator)) return;
+                var w = window;
+                var inTauri = !!(w.__TAURI_INTERNALS__ || w.__TAURI_METADATA__ || w.__TAURI__);
+                if (inTauri) {
+                  // Desktop app serves assets from its embedded bundle; a service
+                  // worker cache only ever replays stale bundles after an update.
+                  // Actively self-heal already-registered workers from old builds.
+                  try {
+                    navigator.serviceWorker.getRegistrations().then(function (regs) {
+                      regs.forEach(function (r) { r.unregister(); });
+                    }).catch(function () {});
+                    if (w.caches && w.caches.keys) {
+                      w.caches.keys().then(function (keys) {
+                        keys.forEach(function (k) { w.caches.delete(k); });
+                      }).catch(function () {});
+                    }
+                  } catch (e) {}
+                  return;
+                }
+                window.addEventListener('load', function () {
+                  navigator.serviceWorker.register('/sw.js').catch(function () {});
                 });
-              }
+              })();
             `,
           }}
         />

@@ -3,6 +3,10 @@ name = "epoch-type"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "epoch_type"
+path = "src/lib.rs"
+
 [[bin]]
 name = "epoch-type"
 path = "src/main.rs"

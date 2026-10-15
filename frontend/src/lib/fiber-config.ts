@@ -242,6 +242,21 @@ export function beesHubRegistrationUrl(): string | null {
   return null;
 }
 
+/** Fiber Gateway (hub) RPC endpoint for payments API. */
+export function beesGatewayRpcUrl(): string | null {
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BEES_GATEWAY_URL) {
+    return process.env.NEXT_PUBLIC_BEES_GATEWAY_URL as string;
+  }
+  return null;
+}
+
+export function beesGatewayRpcToken(): string | null {
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BEES_GATEWAY_TOKEN) {
+    return process.env.NEXT_PUBLIC_BEES_GATEWAY_TOKEN as string;
+  }
+  return null;
+}
+
 export const LAZY_CHANNEL = {
   /** How often to poll list_channels(only_pending) for hub-opened channels. */
   pollIntervalMs: 20_000,

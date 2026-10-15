@@ -5,6 +5,8 @@ members = [
     "crates/epoch-type",
     "crates/rewards-lock",
     "crates/always-success",
+    "crates/bee-node",
+    "crates/bee-orchestrator",
 ]
 resolver = "2"
 

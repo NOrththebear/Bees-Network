@@ -1,0 +1,77 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Bee Network Node",
+  "version": "0.1.0",
+  "identifier": "network.bee.node",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../../frontend/out"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Bee Network Node",
+        "width": 400,
+        "height": 600,
+        "minWidth": 360,
+        "minHeight": 500,
+        "resizable": true,
+        "fullscreen": false,
+        "hiddenTitle": true,
+        "decorations": true,
+        "transparent": false,
+        "label": "main",
+        "url": "/"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "externalBin": [],
+    "copyright": "Copyright © 2024 Bee Network",
+    "category": "Utilities",
+    "shortDescription": "Bee Network observation node",
+    "longDescription": "Run a Bee Network node to serve AI agent observation requests and earn credits.",
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libayatana-appindicator3-1", "librsvg2-common"]
+      }
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.15",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "entitlements": null,
+      "providerShortName": null
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    }
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    },
+    "updater": {
+      "active": true,
+      "endpoints": ["https://github.com/NOrththebear/Bees-Network/releases/latest/download/latest.json"],
+      "dialog": true,
+      "pubkey": ""
+    },
+    "autostart": null
+  }
+}

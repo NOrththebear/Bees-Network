@@ -90,9 +90,27 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Mock mode for testing without on-chain registration
+  const useMock = typeof window !== 'undefined' && (
+    localStorage.getItem('bees_mock_mode') === 'true' ||
+    process.env.NEXT_PUBLIC_BEES_MOCK === 'true'
+  );
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    // Return mock data immediately if enabled
+    if (useMock) {
+      const mockData = generateMockData(userLockHash);
+      setRegistry(mockData.registry);
+      setEpochs(mockData.epochs);
+      setShares(mockData.shares);
+      setUserHarvest(mockData.userHarvest);
+      setLoading(false);
+      return;
+    }
+
     try {
       // The three indexer queries are independent — run them in parallel so
       // one slow query can't stack delays, all under a single timeout.
@@ -207,25 +225,20 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
         });
       }
 
-    } catch (err) {
+} catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch data';
       console.error('Bees data fetch error:', message);
       setError(message);
       // Fallback mock data for demo
-      setUserHarvest({
-        totalHoney: 858_00000000n,
-        totalNectar: 18000000n,
-        epoch: 4,
-        networkQuality: 75,
-        deviceId: generateDeviceId(),
-        isConnected: true,
-        userLockHash,
-        userShares: [],
-      });
+      const mockData = generateMockData(userLockHash);
+      setRegistry(mockData.registry);
+      setEpochs(mockData.epochs);
+      setShares(mockData.shares);
+      setUserHarvest(mockData.userHarvest);
     } finally {
       setLoading(false);
     }
-  }, [userLockHash, network]);
+  }, [userLockHash, network, useMock]);
 
   useEffect(() => {
     // Scheduled (not synchronous) so the initial setLoading(true) inside
@@ -337,4 +350,126 @@ function generateDeviceId(): string {
     return id;
   }
   return 'BEE-XXXX-XXXX-XXXX';
+}
+
+function generateMockData(userLockHash?: string): {
+  registry: RegistryData;
+  epochs: EpochData[];
+  shares: ShareData[];
+  userHarvest: UserHarvest;
+} {
+  const mockLockHash = userLockHash || '0x' + 'a'.repeat(64);
+  const mockNodeId = '0x' + 'b'.repeat(64);
+  
+  const mockNodes: NodeEntry[] = [
+    {
+      nodeId: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+      walletLockHash: mockLockHash,
+      eligible: true,
+      beats: 1247,
+      bytes: 52_428_800, // ~50 MB
+    },
+    {
+      nodeId: '0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321',
+      walletLockHash: '0x' + 'c'.repeat(64),
+      eligible: true,
+      beats: 892,
+      bytes: 31_457_280, // ~30 MB
+    },
+    {
+      nodeId: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+      walletLockHash: '0x' + 'd'.repeat(64),
+      eligible: false,
+      beats: 156,
+      bytes: 5_242_880, // ~5 MB
+    },
+  ];
+
+  const mockShares: ShareData[] = [
+    {
+      epochId: 4,
+      nodeId: mockNodes[0].nodeId,
+      walletLockHash: mockNodes[0].walletLockHash,
+      netPts: 512,
+      upPts: 62,
+      bytes: mockNodes[0].bytes,
+      amount: 858_00000000n,
+      outPoint: { txHash: '0x' + '1'.repeat(64), index: '0x0' },
+      status: 'live',
+    },
+    {
+      epochId: 3,
+      nodeId: mockNodes[0].nodeId,
+      walletLockHash: mockNodes[0].walletLockHash,
+      netPts: 480,
+      upPts: 58,
+      bytes: 48_000_000,
+      amount: 720_00000000n,
+      outPoint: { txHash: '0x' + '2'.repeat(64), index: '0x0' },
+      status: 'claimed',
+    },
+    {
+      epochId: 4,
+      nodeId: mockNodes[1].nodeId,
+      walletLockHash: mockNodes[1].walletLockHash,
+      netPts: 307,
+      upPts: 44,
+      bytes: mockNodes[1].bytes,
+      amount: 510_00000000n,
+      outPoint: { txHash: '0x' + '3'.repeat(64), index: '0x0' },
+      status: 'live',
+    },
+  ];
+
+  const userNode = mockNodes.find(n => n.walletLockHash.toLowerCase() === mockLockHash.toLowerCase());
+  const userShares = mockShares.filter(s => s.walletLockHash.toLowerCase() === mockLockHash.toLowerCase());
+  
+  let totalHoney = 0n;
+  let totalNectar = 0n;
+  for (const share of userShares) {
+    totalHoney += share.amount;
+    totalNectar += share.amount;
+  }
+
+  return {
+    registry: {
+      registryId: '0x1693da11047c21d4995d5f2d71f09dc8f102368761c14d931a4a979c28117db7',
+      operatorLockHash: '0x8e42b1999f265a0078503c4acec4d5e134534297',
+      nodes: mockNodes,
+    },
+    epochs: [
+      {
+        epochId: 4,
+        registryId: '0x1693da11047c21d4995d5f2d71f09dc8f102368761c14d931a4a979c28117db7',
+        merkleRoot: '0x' + 'e'.repeat(64),
+        evidenceHash: '0x' + 'f'.repeat(64),
+        pool: 2_000_00000000n,
+        rewardsRoot: '0x' + '0'.repeat(64),
+        outPoint: { txHash: '0xf2a37945f6e6a796750adf151b81dadd94cf3bc80919b8e263de3bdb9d098ecc', index: '0x0' },
+        status: 'live',
+      },
+      {
+        epochId: 3,
+        registryId: '0x1693da11047c21d4995d5f2d71f09dc8f102368761c14d931a4a979c28117db7',
+        merkleRoot: '0x' + '1'.repeat(64),
+        evidenceHash: '0x' + '2'.repeat(64),
+        pool: 1_500_00000000n,
+        rewardsRoot: '0x' + '3'.repeat(64),
+        outPoint: { txHash: '0x' + '4'.repeat(64), index: '0x0' },
+        status: 'dead',
+      },
+    ],
+    shares: mockShares,
+    userHarvest: {
+      totalHoney,
+      totalNectar,
+      epoch: 4,
+      networkQuality: 82,
+      deviceId: generateDeviceId(),
+      isConnected: true,
+      userLockHash: mockLockHash,
+      userNode,
+      userShares,
+    },
+  };
 }

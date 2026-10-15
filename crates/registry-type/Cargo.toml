@@ -3,6 +3,10 @@ name = "registry-type"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "registry_type"
+path = "src/lib.rs"
+
 [[bin]]
 name = "registry-type"
 path = "src/main.rs"

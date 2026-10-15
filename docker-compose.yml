@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  fiber-hub:
+    build:
+      context: ./fiber-hub
+      dockerfile: Dockerfile
+      args:
+        FIBER_REF: v0.9.0-rc7
+    container_name: bees-fiber-hub
+    environment:
+      - FIBER_SECRET_KEY_PASSWORD=${FIBER_SECRET_KEY_PASSWORD:-changeme123}
+      - FIBER_NETWORK=testnet
+      - CKB_RPC_URL=https://testnet.ckb.dev/
+      - FIBER_RPC_URL=http://127.0.0.1:8227
+      - FIBER_P2P_HOST=127.0.0.1
+      - FIBER_P2P_PORT=8228
+      - FIBER_GATEWAY_RPC_TOKEN=${FIBER_GATEWAY_RPC_TOKEN:-}
+      - FIBER_GATEWAY_RPC_ORIGIN=${FIBER_GATEWAY_RPC_ORIGIN:-*}
+      - PORT=3000
+      - RUST_LOG=info
+    volumes:
+      - fiber-data:/data
+    ports:
+      - "3001:3000"
+      - "8227:8227"
+      - "8228:8228"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  fiber-data:

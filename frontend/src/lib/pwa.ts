@@ -1,5 +1,7 @@
 // PWA utilities for Bees Network
 
+import { isTauri } from './tauri';
+
 export interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -10,8 +12,10 @@ let isInstallable = false;
 
 export function initPWA(): Promise<void> {
   return new Promise((resolve) => {
-    // Register service worker
-    if ('serviceWorker' in navigator) {
+    // Register service worker — but never inside the Tauri desktop app, where
+    // assets are served from the embedded bundle and a SW cache would pin the
+    // UI to a stale build.
+    if ('serviceWorker' in navigator && !isTauri()) {
       navigator.serviceWorker.register('/sw.js').catch(() => {
         // SW registration failed silently
       });

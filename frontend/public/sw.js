@@ -11,8 +11,8 @@
 //   Network-first keeps repeat visits (including installed-PWA relaunches)
 //   always fresh, while still working offline from cache.
 
-const CACHE_NAME = 'bees-network-v3';
-const API_CACHE_NAME = 'bees-network-api-v3';
+const CACHE_NAME = 'bees-network-v4';
+const API_CACHE_NAME = 'bees-network-api-v4';
 
 // Fingerprinted-by-content in prod, never edited: safe to serve from cache.
 const IMMUTABLE_ASSETS = [
