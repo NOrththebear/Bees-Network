@@ -113,86 +113,92 @@ impl OrchestratorClient {
     pub async fn start_websocket(&self, task_tx: mpsc::Sender<TaskRequest>) -> Result<(), String> {
         let config = self.config.read().await.clone();
         let node_id = self.node_id.read().await.clone().ok_or("Node not registered")?;
-        
+
+        // Probe the FIRST connection here (before spawning) so the caller can
+        // fall back to HTTP polling when the orchestrator has no WS endpoint.
+        let initial = connect_async(&config.ws_url)
+            .await
+            .map_err(|e| format!("websocket connect failed: {}", e))?;
+
         tokio::spawn(async move {
-            let mut reconnect_interval = tokio::time::interval(Duration::from_secs(config.reconnect_interval_secs));
-            
+            let mut connection = Some(initial);
             loop {
-                match connect_async(&config.ws_url).await {
-                    Ok((ws_stream, _)) => {
-                        info!("Connected to orchestrator WebSocket");
-                        let (mut ws_sink, mut ws_stream) = ws_stream.split();
-                        
-                        // Send get_task message
-                        let get_task_msg = serde_json::json!({
-                            "type": "get_task",
-                            "node_id": node_id
-                        });
-                        if ws_sink.send(Message::Text(get_task_msg.to_string())).await.is_err() {
-                            error!("Failed to send get_task message");
+                let ws_stream = match connection.take() {
+                    Some((s, _)) => s,
+                    None => match connect_async(&config.ws_url).await {
+                        Ok((s, _)) => s,
+                        Err(e) => {
+                            warn!("WebSocket reconnect failed: {}", e);
+                            tokio::time::sleep(Duration::from_secs(config.reconnect_interval_secs)).await;
                             continue;
                         }
-                        
-                        let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(config.heartbeat_interval_secs));
-                        let mut get_task_interval = tokio::time::interval(Duration::from_secs(10));
-                        
-                        loop {
-                            tokio::select! {
-                                msg = ws_stream.next() => {
-                                    match msg {
-                                        Some(Ok(Message::Text(text))) => {
-                                            if let Ok(response) = serde_json::from_str::<serde_json::Value>(&text) {
-                                                // Handle task response: {"type": "task", "task": {...}}
-                                                if response.get("type").and_then(|v| v.as_str()) == Some("task") {
-                                                    if let Some(task_obj) = response.get("task") {
-                                                        if let Ok(task) = serde_json::from_value::<TaskRequest>(task_obj.clone()) {
-                                                            if task_tx.send(task).await.is_err() {
-                                                                break;
-                                                            }
-                                                        }
+                    },
+                };
+                info!("Connected to orchestrator WebSocket");
+                let (mut ws_sink, mut ws_stream) = ws_stream.split();
+
+                let get_task_msg = serde_json::json!({
+                    "type": "get_task",
+                    "node_id": node_id
+                });
+                if ws_sink.send(Message::Text(get_task_msg.to_string())).await.is_err() {
+                    error!("Failed to send get_task message");
+                    tokio::time::sleep(Duration::from_secs(config.reconnect_interval_secs)).await;
+                    continue;
+                }
+
+                let mut heartbeat_interval = tokio::time::interval(Duration::from_secs(config.heartbeat_interval_secs));
+                let mut get_task_interval = tokio::time::interval(Duration::from_secs(10));
+
+                loop {
+                    tokio::select! {
+                        msg = ws_stream.next() => {
+                            match msg {
+                                Some(Ok(Message::Text(text))) => {
+                                    if let Ok(response) = serde_json::from_str::<serde_json::Value>(&text) {
+                                        if response.get("type").and_then(|v| v.as_str()) == Some("task") {
+                                            if let Some(task_obj) = response.get("task") {
+                                                if let Ok(task) = serde_json::from_value::<TaskRequest>(task_obj.clone()) {
+                                                    if task_tx.send(task).await.is_err() {
+                                                        break;
                                                     }
                                                 }
-                                                // Handle nodes_update (optional)
-                                                // else if response.get("type").and_then(|v| v.as_str()) == Some("nodes_update") { ... }
                                             }
                                         }
-                                        Some(Ok(Message::Close(_))) => break,
-                                        Some(Err(e)) => {
-                                            error!("WebSocket error: {}", e);
-                                            break;
-                                        }
-                                        None => break,
-                                        _ => {}
                                     }
                                 }
-                                _ = heartbeat_interval.tick() => {
-                                    let hb = serde_json::json!({"type": "heartbeat", "node_id": node_id});
-                                    if ws_sink.send(Message::Text(hb.to_string())).await.is_err() {
-                                        break;
-                                    }
+                                Some(Ok(Message::Close(_))) => break,
+                                Some(Err(e)) => {
+                                    error!("WebSocket error: {}", e);
+                                    break;
                                 }
-                                _ = get_task_interval.tick() => {
-                                    let get_task_msg = serde_json::json!({
-                                        "type": "get_task",
-                                        "node_id": node_id
-                                    });
-                                    if ws_sink.send(Message::Text(get_task_msg.to_string())).await.is_err() {
-                                        break;
-                                    }
-                                }
+                                None => break,
+                                _ => {}
+                            }
+                        }
+                        _ = heartbeat_interval.tick() => {
+                            let hb = serde_json::json!({"type": "heartbeat", "node_id": node_id});
+                            if ws_sink.send(Message::Text(hb.to_string())).await.is_err() {
+                                break;
+                            }
+                        }
+                        _ = get_task_interval.tick() => {
+                            let get_task_msg = serde_json::json!({
+                                "type": "get_task",
+                                "node_id": node_id
+                            });
+                            if ws_sink.send(Message::Text(get_task_msg.to_string())).await.is_err() {
+                                break;
                             }
                         }
                     }
-                    Err(e) => {
-                        warn!("Failed to connect to orchestrator: {}", e);
-                    }
                 }
-                
-                reconnect_interval.tick().await;
+
                 warn!("Reconnecting to orchestrator...");
+                tokio::time::sleep(Duration::from_secs(config.reconnect_interval_secs)).await;
             }
         });
-        
+
         Ok(())
     }
 

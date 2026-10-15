@@ -96,7 +96,7 @@ async fn json_rpc_call(url: &str, method: &str, params: Value) -> Result<Value, 
     Ok(response.result.unwrap_or(Value::Null))
 }
 
-fn get_rpc_url(network: &str) -> String {
+pub(crate) fn get_rpc_url(network: &str) -> String {
     match network {
         "testnet" => "https://testnet.ckb.dev".to_string(),
         "mainnet" => "https://mainnet.ckb.dev".to_string(),
@@ -104,7 +104,7 @@ fn get_rpc_url(network: &str) -> String {
     }
 }
 
-fn get_indexer_url(network: &str) -> String {
+pub(crate) fn get_indexer_url(network: &str) -> String {
     match network {
         "testnet" => "https://testnet.ckb.dev/indexer".to_string(),
         "mainnet" => "https://mainnet.ckb.dev/indexer".to_string(),

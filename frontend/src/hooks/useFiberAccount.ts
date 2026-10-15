@@ -60,7 +60,7 @@ interface PeerSummary {
   address: string;
 }
 
-function getOrCreateDeviceId(): string {
+export function getOrCreateDeviceId(): string {
   let id = localStorage.getItem('bees_device_id');
   if (!id) {
     const rand = Array.from({ length: 12 }, () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[Math.floor(Math.random() * 36)]).join('');

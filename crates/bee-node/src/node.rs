@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::config::NodeConfig;
 use crate::crypto::{sign_task_result, load_private_key};
 use crate::orchestrator_client::{OrchestratorClient, OrchestratorConfig};
-use crate::rpc::{submit_beats, register_node_rpc, claim_rewards_rpc, get_epoch_info};
+
 use crate::tasks::{TaskExecutor, TaskExecutorBuilder};
 use crate::types::{NodeStatus, TaskRequest, TaskResult, NodeInfo, Location, NetworkStats, BeatsReport, TauriWindow};
 
@@ -78,7 +78,14 @@ impl NodeWorker {
         if std::env::var("SKIP_ONCHAIN_REG").unwrap_or_default() != "1" {
             *self.status.write().await = NodeStatus::Registering;
             self.emit_status().await;
-            register_node_rpc(&self.config.wallet, &node_id, &self.config).await?;
+            let operator_key = crate::chain::resolve_operator_key(&self.config)?;
+            crate::chain::register_node_onchain(
+                &self.config.wallet,
+                &node_id,
+                &self.config.network,
+                &operator_key,
+            )
+            .await?;
         } else {
             info!("Skipping on-chain registration (SKIP_ONCHAIN_REG=1)");
         }
@@ -240,7 +247,6 @@ impl NodeWorker {
         let total_bytes = self.total_bytes.clone();
         let status = self.status.clone();
         let window = self.window.clone();
-        let skip_onchain = std::env::var("SKIP_ONCHAIN_REG").unwrap_or_default() == "1";
 
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300)); // Every 5 minutes
@@ -255,22 +261,12 @@ impl NodeWorker {
                 let bytes = *total_bytes.read().await;
                 
                 if beats > 0 || bytes > 0 {
-                    if skip_onchain {
-                        info!("Skipping beats submission (SKIP_ONCHAIN_REG=1): beats={}, bytes={}", beats, bytes);
-                        *total_beats.write().await = 0;
-                        *total_bytes.write().await = 0;
-                    } else {
-                        match submit_beats(&config.wallet, &config, beats, bytes).await {
-                            Ok(_) => {
-                                info!("Submitted beats: {}, bytes: {}", beats, bytes);
-                                *total_beats.write().await = 0;
-                                *total_bytes.write().await = 0;
-                            }
-                            Err(e) => {
-                                warn!("Failed to submit beats: {}", e);
-                            }
-                        }
-                    }
+                    // Beat/byte counters are reported to the orchestrator
+                    // off-chain; on-chain settlement is coordinator-driven
+                    // (epoch close + merkle reward claims), so no tx is sent here.
+                    info!("Reporting beats off-chain: beats={}, bytes={}", beats, bytes);
+                    *total_beats.write().await = 0;
+                    *total_bytes.write().await = 0;
                 }
             }
         })

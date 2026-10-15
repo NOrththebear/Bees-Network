@@ -11,6 +11,11 @@ pub struct NodeConfig {
     pub auto_start: bool,
     pub max_concurrent_tasks: usize,
     pub request_timeout_secs: u64,
+    /// Testnet demo: operator secp256k1 secret key used to sign registry
+    /// mutations (the registry is operator-gated). Prefer the
+    /// `BEE_OPERATOR_SECRET_KEY` env var; this field is a fallback.
+    #[serde(default)]
+    pub operator_secret_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +36,7 @@ impl Default for NodeConfig {
             auto_start: false,
             max_concurrent_tasks: 10,
             request_timeout_secs: 30,
+            operator_secret_key: None,
         }
     }
 }

@@ -1,0 +1,216 @@
+// Bees Network coordinator (v0.1, demo).
+//
+// Reads the orchestrator's live beat/byte tally, joins it with the on-chain
+// registry (eligible nodes + wallet lock hashes), computes points, and mints
+// ONE epoch cell plus one rewards-lock share cell per earning node. Nodes then
+// claim their share from the desktop app.
+//
+// Usage:  CKB_RPC=https://testnet.ckb.dev node coordinator.mjs
+// Env:    ORCHESTRATOR_URL (default http://127.0.0.1:8080)
+//         EPOCH_ID (default: latest on-chain epoch id + 1)
+//         POOL     (default 1e18 tRELAY units, off-chain bookkeeping)
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { rpc, scriptHash, signSighashGroups, sendAndWait, getLive, groupInputsByLock } from "./chain.mjs";
+import {
+  computePoints, encodeEpoch, encodeShare, rewardLeaf, merkleRoot,
+  canonicalJson, evidenceHash, epochTypeArgs, rewardsLockArgs, pointsLeaf,
+} from "../shared-ts/src/index.ts";
+
+const SECP = { code_hash: "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8", hash_type: "type" };
+const OP = { ...SECP, args: "0x8e42b1999f265a0078503c4acec4d5e134534297" };
+const OP_KEY = "0x6109170b275a09ad54877b82f7d9930f88cab5717d484fb4741ae9d1dd078cd6";
+const SECP_DEP = { out_point: { tx_hash: "0xf8de3bb47d055cdf460d93a2a6e1b05f7432f9777c8c474abf4eec1d4aee5d37", index: "0x0" }, dep_type: "dep_group" };
+const CODE = {
+  registry: "0x1ceea29bd9a625ccd2f7ba852a9fd98c0363c668e6fa76ca9ad054482e2fafd8",
+  epoch: "0x36074a1c44e9c6b6d741c0934a905cbbaeb6f0b12cb69513b91ccefd586786e1",
+  rewards: "0xa717298157262884a0e4e70a50c17486ad264554cadaca20efa8a90086f2cd84",
+};
+const REGISTRY_ID = "0x1693da11047c21d4995d5f2d71f09dc8f102368761c14d931a4a979c28117db7";
+const OP_HASH = scriptHash(OP);
+const ORCH = process.env.ORCHESTRATOR_URL ?? "http://127.0.0.1:8080";
+const POOL = BigInt(process.env.POOL ?? "1000000000000000000");
+const SHANNON = 100_000_000n;
+const CKB = (n) => "0x" + (BigInt(n) * SHANNON).toString(16);
+const SH = (bi) => "0x" + BigInt(bi).toString(16);
+const hx = (b) => `0x${b.toString(16)}`;
+const KEYS = { [OP_HASH]: OP_KEY };
+
+async function tally() {
+  const r = await fetch(`${ORCH}/admin/tally`);
+  if (!r.ok) throw new Error(`tally ${r.status}`);
+  return (await r.json()).nodes ?? [];
+}
+
+async function registryCell() {
+  const res = await rpc("get_cells", [
+    { script: { code_hash: CODE.registry, hash_type: "data2", args: REGISTRY_ID }, script_type: "type", script_search_mode: "exact", with_data: true },
+    "asc", "0x1",
+  ]);
+  const o = res.objects[0];
+  if (!o) throw new Error("registry cell not found");
+  return { outPoint: o.out_point, data: Buffer.from(o.output_data.slice(2), "hex") };
+}
+
+function decodeRegistry(raw) {
+  const cnt = raw.readUInt32LE(64);
+  const entries = [];
+  for (let i = 0; i < cnt; i++) {
+    const o = 68 + i * 81;
+    entries.push({
+      nodeId: `0x${raw.subarray(o, o + 32).toString("hex")}`,
+      walletLockHash: `0x${raw.subarray(o + 32, o + 64).toString("hex")}`,
+      eligible: raw[o + 64] === 1,
+      beats: raw.readBigUInt64LE(o + 65),
+      bytes: raw.readBigUInt64LE(o + 73),
+    });
+  }
+  return entries;
+}
+
+async function latestEpochId() {
+  const res = await rpc("get_cells", [
+    { script: { code_hash: CODE.epoch, hash_type: "data2", args: "0x" }, script_type: "type", script_search_mode: "prefix", with_data: true },
+    "asc", "0x64",
+  ]);
+  let max = 0n;
+  for (const o of res.objects) {
+    const b = Buffer.from(o.output_data.slice(2), "hex");
+    if (b.length === 158) {
+      const id = b.readBigUInt64LE(6);
+      if (id > max) max = id;
+    }
+  }
+  return max;
+}
+
+async function pickFunding(minShannons) {
+  const out = [];
+  let cap = 0n;
+  let cursor = null;
+  for (let page = 0; page < 60; page++) {
+    const params = [{ script: OP, script_type: "lock", script_search_mode: "exact" }, "asc", "0x64"];
+    if (cursor) params.push(cursor);
+    const res = await rpc("get_cells", params);
+    for (const c of res.objects) {
+      if (c.output.type) continue; // typed cells can't be spent as plain funding
+      out.push(c.out_point);
+      cap += BigInt(c.output.capacity);
+      if (cap >= minShannons) break;
+    }
+    if (cap >= minShannons) break;
+    if (!res.last_cursor || res.objects.length === 0) break;
+    cursor = res.last_cursor;
+  }
+  if (cap < minShannons) throw new Error(`insufficient operator funds: have ${cap}, need ${minShannons}`);
+  return { outPoints: out, cap };
+}
+
+async function buildTx({ inputs, outputs, outputsData, cellDeps, label }) {
+  const withLocks = [];
+  for (const op of inputs) {
+    const live = await getLive(op);
+    withLocks.push({ outPoint: op, _lock: live.cell.output.lock, capacity: live.cell.output.capacity });
+  }
+  const inCap = withLocks.reduce((a, c) => a + BigInt(c.capacity), 0n);
+  const outCap = outputs.reduce((a, o) => a + BigInt(o.capacity), 0n);
+  if (inCap < outCap) throw new Error(`${label}: in<out`);
+  const tx = {
+    version: "0x0", cell_deps: cellDeps, header_deps: [],
+    inputs: withLocks.map((c) => ({ previous_output: c.outPoint, since: "0x0", _lock: c._lock })),
+    outputs: outputs.map((o) => ({ capacity: o.capacity, lock: o.lock, ...(o.type ? { type: o.type } : {}) })),
+    outputs_data: outputsData,
+    witnesses: withLocks.map(() => "0x"),
+  };
+  await signSighashGroups(tx, KEYS);
+  for (const g of groupInputsByLock(tx)) {
+    if (KEYS[scriptHash(g.lock)] && tx.witnesses[g.idxs[0]] === "0x") throw new Error(`${label}: unsigned`);
+  }
+  const clean = {
+    version: tx.version, cell_deps: tx.cell_deps, header_deps: tx.header_deps,
+    inputs: tx.inputs.map(({ _lock, ...i }) => i), outputs: tx.outputs,
+    outputs_data: tx.outputs_data, witnesses: tx.witnesses,
+  };
+  return sendAndWait(clean, label);
+}
+
+async function main() {
+  const t = await tally();
+  const byNode = new Map(t.map((n) => [n.node_id.toLowerCase(), n]));
+  const reg = decodeRegistry((await registryCell()).data);
+
+  const earners = [];
+  for (const e of reg) {
+    if (!e.eligible) continue;
+    const n = byNode.get(e.nodeId.toLowerCase());
+    if (!n || (n.beats === 0 && n.bytes === 0)) continue;
+    const { netPts, upPts } = computePoints(n.bytes, n.beats);
+    earners.push({ nodeId: e.nodeId, wallet: e.walletLockHash, netPts, upPts, bytes: n.bytes, beats: n.beats });
+  }
+  if (earners.length === 0) {
+    console.log("No earning nodes (no beats/bytes in tally). Nothing to close.");
+    return;
+  }
+
+  const epochId = process.env.EPOCH_ID ? BigInt(process.env.EPOCH_ID) : (await latestEpochId()) + 1n;
+
+  // Points ledger (epoch.merkle_root).
+  const pLeaves = earners.map((e) => pointsLeaf(e.nodeId, e.netPts, e.upPts, e.bytes));
+  const mroot = merkleRoot(pLeaves);
+
+  // Rewards ledger (share leaves) with pool split by points (fallback: equal).
+  const weights = earners.map((e) => BigInt(e.netPts + e.upPts));
+  const totalW = weights.reduce((a, b) => a + b, 0n);
+  const shares = earners.map((e, i) => {
+    const amount = totalW === 0n ? POOL / BigInt(earners.length) : (POOL * weights[i]) / totalW;
+    return { ...e, amount };
+  });
+  const rLeaves = shares.map((s) => rewardLeaf(epochId, s.nodeId, s.wallet, s.netPts, s.upPts, s.bytes, s.amount));
+  const rRoot = merkleRoot(rLeaves);
+
+  const evidence = {
+    schema: "bees-network/epoch-v1", chainId: "ckb-pudge-testnet", epochId: Number(epochId),
+    perNode: earners.map((e) => ({ nodeId: e.nodeId, bytes: e.bytes, beats: e.beats, netPts: e.netPts, upPts: e.upPts })),
+    jobsSample: [], spotChecks: [],
+  };
+  const evHash = evidenceHash(canonicalJson(evidence));
+
+  console.log(`epoch ${epochId}: ${earners.length} earner(s), root=${mroot.slice(0, 18)}.. rewards_root=${rRoot.slice(0, 18)}..`);
+
+  const epochArgs = epochTypeArgs(epochId, REGISTRY_ID);
+  const eType = { code_hash: CODE.epoch, hash_type: "data2", args: epochArgs };
+  const edata = `0x${Buffer.from(encodeEpoch(epochId, REGISTRY_ID, mroot, evHash, POOL, rRoot)).toString("hex")}`;
+
+  const outputs = [{ capacity: CKB(300), lock: OP, type: eType }];
+  const datas = [edata];
+  for (const s of shares) {
+    const lock = { code_hash: CODE.rewards, hash_type: "data2", args: rewardsLockArgs(epochId, rRoot) };
+    datas.push(`0x${Buffer.from(encodeShare(epochId, s.nodeId, s.wallet, s.netPts, s.upPts, s.bytes, s.amount)).toString("hex")}`);
+    outputs.push({ capacity: CKB(300), lock });
+  }
+
+  const need = outputs.reduce((a, o) => a + BigInt(o.capacity), 0n) + 3n * SHANNON;
+  const fund = await pickFunding(need);
+  const change = fund.cap - outputs.reduce((a, o) => a + BigInt(o.capacity), 0n) - 3n * SHANNON;
+  outputs.push({ capacity: SH(change), lock: OP });
+  datas.push("0x");
+
+  const hash = await buildTx({
+    inputs: fund.outPoints,
+    outputs,
+    outputsData: datas,
+    cellDeps: [SECP_DEP, { out_point: { tx_hash: "0x6b6f4f43bff47259f6603b5658db61e3e350d7e98ad98639063f6073646f8173", index: "0x1" }, dep_type: "code" }, { out_point: { tx_hash: "0x6b6f4f43bff47259f6603b5658db61e3e350d7e98ad98639063f6073646f8173", index: "0x2" }, dep_type: "code" }],
+    label: `coordinator close epoch ${epochId}`,
+  });
+
+  console.log(`epoch ${epochId} closed: tx=${hash}`);
+  console.log(`  epoch cell: ${hash}:0x0`);
+  for (let i = 0; i < shares.length; i++) {
+    console.log(`  share ${shares[i].nodeId.slice(0, 12)}.. -> cell ${hash}:0x${(i + 1).toString(16)} amount=${shares[i].amount}`);
+  }
+  const jp = "coordinator-journal.json";
+  const J = existsSync(jp) ? JSON.parse(readFileSync(jp, "utf8")) : { epochs: [] };
+  J.epochs.push({ epochId: Number(epochId), tx: hash, earners: earners.length });
+  writeFileSync(jp, JSON.stringify(J, null, 2));
+}
+
+main().catch((e) => { console.error("FATAL:", e?.stack ?? e); process.exit(1); });

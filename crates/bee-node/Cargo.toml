@@ -35,6 +35,11 @@ tokio-tungstenite = { version = "0.21", features = ["__rustls-tls"] }
 futures-util = "0.3"
 dashmap = "5.0"
 bech32 = "0.11"
+ckb-sdk = "5.1.0"
+ckb-types = "1.1"
+ckb-jsonrpc-types = "1.1"
+# ckb-sdk 5.x signs with secp256k1 0.30; the crate above pins 0.28, so alias.
+secp256k1_v030 = { package = "secp256k1", version = "0.30" }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

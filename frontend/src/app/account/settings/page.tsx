@@ -5,9 +5,10 @@ import { Card } from '@/components/ui';
 import { Toggle } from '@/components/ui';
 import { Input } from '@/components/ui';
 import { Button } from '@/components/ui';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { isTauri, tauriInvoke } from '@/lib/tauri';
 import { ensureFiberKeys, deriveLockHashSync } from '@/lib/fiber-keys';
+import { getOrCreateDeviceId } from '@/hooks/useFiberAccount';
 
 const RocketIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} {...props}>
@@ -79,6 +80,12 @@ export default function AppSettings() {
   const [walletKeychainId, setWalletKeychainId] = useState('bee-network-wallet');
   const [walletInitialized, setWalletInitialized] = useState(false);
   const [walletInitializing, setWalletInitializing] = useState(false);
+  const [registering, setRegistering] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [nodeStatus, setNodeStatus] = useState<string>('stopped');
+  const [nodeBusy, setNodeBusy] = useState(false);
+  const [nodeError, setNodeError] = useState<string | null>(null);
+  const autoStarted = useRef(false);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [walletSuccess, setWalletSuccess] = useState(false);
   // Evaluated once on mount (post-hydration) so the UI deterministically
@@ -101,6 +108,44 @@ export default function AppSettings() {
       initWalletFromFiberKeys();
     }
   }, []);
+
+  const formatNodeStatus = (s: unknown): string => {
+    if (typeof s === 'string') return s;
+    if (s && typeof s === 'object' && 'error' in (s as Record<string, unknown>)) {
+      return `error: ${(s as Record<string, unknown>).error}`;
+    }
+    return String(s);
+  };
+
+  // Track node runtime status via the Tauri `node-status` event + polling.
+  useEffect(() => {
+    if (!inTauri) return;
+    let unlisten: (() => void) | undefined;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen<unknown>('node-status', (e) => setNodeStatus(formatNodeStatus(e.payload)));
+      } catch {
+        /* event API unavailable */
+      }
+      const poll = async () => {
+        try {
+          const s = await tauriInvoke<unknown>('get_node_status');
+          setNodeStatus(formatNodeStatus(s));
+        } catch {
+          /* ignore */
+        }
+      };
+      void poll();
+      timer = setInterval(poll, 3000);
+    })();
+    return () => {
+      unlisten?.();
+      if (timer) clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inTauri]);
 
   const initWalletFromFiberKeys = async () => {
     try {
@@ -167,13 +212,17 @@ export default function AppSettings() {
     }
     setWalletError(null);
     try {
-      const nodeId = await tauriInvoke<string>('register_node');
+      setRegistering(true);
+      const deviceId = getOrCreateDeviceId();
+      const nodeId = await tauriInvoke<string>('register_node', { deviceId });
       setWalletSuccess(true);
       setTimeout(() => setWalletSuccess(false), 3000);
       alert(`Node registered: ${nodeId}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to register node';
       setWalletError(msg);
+    } finally {
+      setRegistering(false);
     }
   };
 
@@ -188,13 +237,60 @@ export default function AppSettings() {
     }
     setWalletError(null);
     try {
+      setClaiming(true);
       const amount = await tauriInvoke<number>('claim_rewards');
-      alert(`Claimed ${amount} CKB (shannons)`);
+      if (!amount || amount <= 0) {
+        alert('Nothing to claim right now. Rewards appear after a coordinator closes an epoch that includes your node.');
+      } else {
+        alert(`Claimed ${(amount / 1e8).toFixed(4)} CKB`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to claim rewards';
       setWalletError(msg);
+    } finally {
+      setClaiming(false);
     }
   };
+
+  const handleStartNode = async () => {
+    if (!isTauri()) {
+      setNodeError('Node runtime is only available in the desktop app');
+      return;
+    }
+    setNodeBusy(true);
+    setNodeError(null);
+    try {
+      await tauriInvoke('start_node');
+      setNodeStatus('running');
+    } catch (err) {
+      setNodeError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setNodeBusy(false);
+    }
+  };
+
+  const handleStopNode = async () => {
+    if (!isTauri()) return;
+    setNodeBusy(true);
+    setNodeError(null);
+    try {
+      await tauriInvoke('stop_node');
+      setNodeStatus('stopped');
+    } catch (err) {
+      setNodeError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setNodeBusy(false);
+    }
+  };
+
+  // Auto-start the node once, when enabled and the wallet is linked.
+  useEffect(() => {
+    if (inTauri && walletInitialized && autoStart && !autoStarted.current) {
+      autoStarted.current = true;
+      void handleStartNode();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inTauri, walletInitialized, autoStart]);
 
   const handleAutoStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
@@ -297,13 +393,13 @@ export default function AppSettings() {
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <Button variant="secondary" onClick={handleRegisterNode} disabled={walletInitializing} fullWidth>
-                    Register Node
+                  <Button variant="secondary" onClick={handleRegisterNode} disabled={walletInitializing || registering} fullWidth>
+                    {registering ? 'Registering...' : 'Register Node'}
                   </Button>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="secondary" onClick={handleClaimRewards} disabled={walletInitializing} fullWidth>
-                    Claim Rewards
+                  <Button variant="secondary" onClick={handleClaimRewards} disabled={walletInitializing || claiming} fullWidth>
+                    {claiming ? 'Claiming...' : 'Claim Rewards'}
                   </Button>
                 </div>
               </>
@@ -333,6 +429,39 @@ export default function AppSettings() {
               </p>
             )}
           </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="p-2 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                <ServerIcon />
+              </span>
+              <div>
+                <span className="font-medium text-[var(--color-text)]">Node Runtime</span>
+                <p className="text-xs text-[var(--color-text-muted)]">Status: {nodeStatus}</p>
+              </div>
+            </div>
+            {nodeStatus === 'running' ? (
+              <Button variant="secondary" onClick={handleStopNode} disabled={nodeBusy}>
+                {nodeBusy ? '...' : 'Stop'}
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={handleStartNode} disabled={nodeBusy || !walletInitialized}>
+                {nodeBusy ? '...' : 'Start'}
+              </Button>
+            )}
+          </div>
+          {nodeError && (
+            <p className="text-xs text-red-600 flex items-center gap-1 mt-2">
+              <AlertIcon /> {nodeError}
+            </p>
+          )}
+          {!inTauri && (
+            <p className="text-xs text-[var(--color-text-muted)] mt-2">
+              Node runtime is available in the desktop app.
+            </p>
+          )}
         </Card>
 
         <Card>

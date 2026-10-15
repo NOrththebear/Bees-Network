@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod api;
+mod chain;
 mod config;
 mod crypto;
 mod node;
@@ -156,21 +157,41 @@ mod tauri_app {
     }
 
     #[tauri::command]
-    async fn register_node(state: State<'_, TauriState>) -> Result<String, String> {
-        let guard = state.inner.read().await;
-        let config = guard.config.read().await.clone();
-        
+    async fn register_node(
+        state: State<'_, TauriState>,
+        device_id: Option<String>,
+    ) -> Result<String, String> {
+        let mut config = {
+            let guard = state.inner.read().await;
+            let cfg = guard.config.read().await.clone();
+            cfg
+        };
+
+        // Keep the backend install_uuid in sync with the frontend device id so
+        // both sides derive the same node_id = ckbhash("0x<lockhash>:<deviceId>").
+        if let Some(device_id) = device_id.filter(|d| !d.trim().is_empty()) {
+            if config.install_uuid != device_id {
+                config.install_uuid = device_id;
+                if let Err(e) = config.save().await {
+                    warn!("failed to persist install_uuid: {}", e);
+                }
+                let guard = state.inner.write().await;
+                *guard.config.write().await = config.clone();
+            }
+        }
+
         let wallet = config.wallet.clone();
         if wallet.lock_hash.is_empty() {
             return Err("Wallet not configured".into());
         }
-        
+
         let node_id = crate::node::generate_node_id(&wallet.lock_hash, &config.install_uuid);
-        
-        crate::rpc::register_node_rpc(&wallet, &node_id, &config)
+        let operator_key = crate::chain::resolve_operator_key(&config)?;
+
+        crate::chain::register_node_onchain(&wallet, &node_id, &config.network, &operator_key)
             .await
             .map_err(|e| e.to_string())?;
-        
+
         Ok(node_id)
     }
 
@@ -179,15 +200,15 @@ mod tauri_app {
         let guard = state.inner.read().await;
         let config = guard.config.read().await.clone();
         let wallet = config.wallet.clone();
-        
+
         if wallet.lock_hash.is_empty() {
             return Err("Wallet not configured".into());
         }
-        
-        let amount = crate::rpc::claim_rewards_rpc(&wallet, &config)
+
+        let amount = crate::chain::claim_rewards_onchain(&wallet, &config.network)
             .await
             .map_err(|e| e.to_string())?;
-        
+
         Ok(amount)
     }
 
@@ -266,8 +287,112 @@ fn main() {
                 .with_env_filter(EnvFilter::from_default_env())
                 .init();
 
-            let config = NodeConfig::load().unwrap_or_default();
-            
+            let mut config = NodeConfig::load().unwrap_or_default();
+
+            // One-shot operator helper: register this wallet's node on-chain
+            // (operator-signed) and exit. Used for testing/ops:
+            //   BEE_REGISTER_ONCE=1 [BEE_DEVICE_ID=...] bee-node
+            if std::env::var("BEE_REGISTER_ONCE").unwrap_or_default() == "1" {
+                if let Ok(d) = std::env::var("BEE_DEVICE_ID") {
+                    if !d.trim().is_empty() {
+                        config.install_uuid = d;
+                    }
+                }
+                if config.wallet.lock_hash.is_empty() {
+                    eprintln!("Wallet not configured. Link the wallet first.");
+                    std::process::exit(1);
+                }
+                let node_id =
+                    crate::node::generate_node_id(&config.wallet.lock_hash, &config.install_uuid);
+                let operator_key = match crate::chain::resolve_operator_key(&config) {
+                    Ok(k) => k,
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        std::process::exit(1);
+                    }
+                };
+                match crate::chain::register_node_onchain(
+                    &config.wallet,
+                    &node_id,
+                    &config.network,
+                    &operator_key,
+                )
+                .await
+                {
+                    Ok(hash) => println!("REGISTERED node_id={} tx={}", node_id, hash),
+                    Err(e) => {
+                        eprintln!("REGISTER FAILED: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
+
+            // One-shot ops helper: mint a test epoch + single reward share for
+            // this wallet's node so the claim path is exercisable:
+            //   BEE_SEED_EPOCH=1 [BEE_DEVICE_ID=...] [BEE_EPOCH_ID=...] bee-node
+            if std::env::var("BEE_SEED_EPOCH").unwrap_or_default() == "1" {
+                if let Ok(d) = std::env::var("BEE_DEVICE_ID") {
+                    if !d.trim().is_empty() {
+                        config.install_uuid = d;
+                    }
+                }
+                if config.wallet.lock_hash.is_empty() {
+                    eprintln!("Wallet not configured. Link the wallet first.");
+                    std::process::exit(1);
+                }
+                let node_id =
+                    crate::node::generate_node_id(&config.wallet.lock_hash, &config.install_uuid);
+                let epoch_id: u64 = std::env::var("BEE_EPOCH_ID")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(497_586);
+                let operator_key = match crate::chain::resolve_operator_key(&config) {
+                    Ok(k) => k,
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        std::process::exit(1);
+                    }
+                };
+                match crate::chain::seed_epoch_share_onchain(
+                    &config.wallet,
+                    &node_id,
+                    epoch_id,
+                    1_000_000_000_000_000_000u128,
+                    &config.network,
+                    &operator_key,
+                )
+                .await
+                {
+                    Ok(r) => println!(
+                        "SEEDED epoch_id={} node_id={} tx={} epoch_op={} share_op={}",
+                        epoch_id, node_id, r.tx_hash, r.epoch_out_point, r.share_out_point
+                    ),
+                    Err(e) => {
+                        eprintln!("SEED FAILED: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
+
+            // One-shot ops helper: claim all reward shares for this wallet:
+            //   BEE_CLAIM_ONCE=1 bee-node
+            if std::env::var("BEE_CLAIM_ONCE").unwrap_or_default() == "1" {
+                if config.wallet.lock_hash.is_empty() {
+                    eprintln!("Wallet not configured. Link the wallet first.");
+                    std::process::exit(1);
+                }
+                match crate::chain::claim_rewards_onchain(&config.wallet, &config.network).await {
+                    Ok(amount) => println!("CLAIMED amount={}", amount),
+                    Err(e) => {
+                        eprintln!("CLAIM FAILED: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
+
             // Check if wallet is configured
             if config.wallet.lock_hash.is_empty() {
                 eprintln!("Wallet not configured. Set lock_hash in config.");
