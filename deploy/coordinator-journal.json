@@ -29,6 +29,16 @@
       "epochId": 497594,
       "tx": "0x117c334d2b54333e49492fd3dc7df5fa49932706a2e57dbaa0d166c5668853bc",
       "earners": 1
+    },
+    {
+      "epochId": 497595,
+      "tx": "0xa35b060a0903aab63f02f16c50606500991ade693eabc0056a7c78c3da02f269",
+      "earners": 1
+    },
+    {
+      "epochId": 497596,
+      "tx": "0xbe7ed7b24edb8ebb1a86f8c99ae1b8bb09d5afc7e1b171af355a7329f4dca851",
+      "earners": 1
     }
   ]
 }
