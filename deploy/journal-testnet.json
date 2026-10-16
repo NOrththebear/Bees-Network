@@ -137,5 +137,19 @@
   "claimed": {
     "tx": "0x16fe062640c8d552be17f38ac51d813ab0476b505c5a64fe079aef951bef86ba",
     "amount": "75000000000000000000"
+  },
+  "codeV2": {
+    "registry-type": {
+      "tx_hash": "0xd17ade10703f2c492e8fcf1543ed6723403a6ec2f1b14683ecf8b713bbf62c71",
+      "index": "0x0"
+    },
+    "epoch-type": {
+      "tx_hash": "0xd17ade10703f2c492e8fcf1543ed6723403a6ec2f1b14683ecf8b713bbf62c71",
+      "index": "0x1"
+    },
+    "rewards-lock": {
+      "tx_hash": "0xd17ade10703f2c492e8fcf1543ed6723403a6ec2f1b14683ecf8b713bbf62c71",
+      "index": "0x2"
+    }
   }
 }

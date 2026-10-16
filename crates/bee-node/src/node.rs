@@ -72,29 +72,38 @@ impl NodeWorker {
             return Err("Wallet not configured".into());
         }
 
-        // Register node on-chain (skip if SKIP_ONCHAIN_REG=1 for testing)
+        // Derive the node id and hand it to the orchestrator client up-front so
+        // task polling can begin even if the orchestrator is briefly offline.
         let node_id = crate::node::generate_node_id(&self.config.wallet.lock_hash, &self.config.install_uuid);
-        
+        let orchestrator_client = self.orchestrator_client.take().expect("orchestrator client not available");
+        orchestrator_client.set_node_id(node_id.clone()).await;
+
+        // Register node on-chain. Best-effort: the registry entry is required
+        // for rewards, but a transient indexer/RPC failure must not prevent the
+        // node from running (registration retries on the next start; the op is
+        // idempotent when the node already exists).
         if std::env::var("SKIP_ONCHAIN_REG").unwrap_or_default() != "1" {
             *self.status.write().await = NodeStatus::Registering;
             self.emit_status().await;
-            let operator_key = crate::chain::resolve_operator_key(&self.config)?;
-            crate::chain::register_node_onchain(
-                &self.config.wallet,
-                &node_id,
-                &self.config.network,
-                &operator_key,
-            )
-            .await?;
+            match crate::chain::resolve_operator_key(&self.config) {
+                Ok(operator_key) => {
+                    if let Err(e) = crate::chain::register_node_onchain(
+                        &self.config.wallet,
+                        &node_id,
+                        &self.config.network,
+                        &operator_key,
+                    )
+                    .await
+                    {
+                        warn!("On-chain registration skipped (will retry next start): {}", e);
+                    }
+                }
+                Err(e) => warn!("On-chain registration skipped: {}", e),
+            }
         } else {
             info!("Skipping on-chain registration (SKIP_ONCHAIN_REG=1)");
         }
 
-        // Register with orchestrator
-        let node_info = self.get_info().await;
-        let orchestrator_client = self.orchestrator_client.take().expect("orchestrator client not available");
-        orchestrator_client.register_node(node_info.clone()).await?;
-        
         // Start task executor with channel from orchestrator
         let task_rx = self.task_rx.take().expect("task_rx not available");
         let task_tx = self.task_tx.clone().expect("task_tx not available");
@@ -115,17 +124,34 @@ impl NodeWorker {
         let worker_handle = tokio::spawn(executor.run());
         self.worker_handle = Some(worker_handle);
 
-        // Start orchestrator connection (WebSocket + HTTP polling fallback)
-        let orchestrator_client_clone = orchestrator_client.clone();
-        let task_tx_for_orchestrator = self.task_tx.clone().expect("task_tx not available");
-        let orchestrator_handle = tokio::spawn(async move {
-            if let Err(e) = orchestrator_client_clone.start_websocket(task_tx_for_orchestrator.clone()).await {
-                warn!("WebSocket failed, falling back to HTTP polling: {}", e);
-                if let Err(e) = orchestrator_client_clone.start_task_polling(task_tx_for_orchestrator).await {
-                    error!("Failed to start task polling: {}", e);
+        // Register with the orchestrator (retrying until it answers) and then
+        // stream tasks over WebSocket, falling back to HTTP polling. Doing this
+        // in the background means a restart or downtime of the orchestrator can
+        // never abort node startup.
+        let node_info = self.get_info().await;
+        let orchestrator_handle = {
+            let client = orchestrator_client.clone();
+            let task_tx = self.task_tx.clone().expect("task_tx not available");
+            let window = self.window.clone();
+            tokio::spawn(async move {
+                loop {
+                    match client.register_node(node_info.clone()).await {
+                        Ok(_) => break,
+                        Err(e) => {
+                            warn!("Orchestrator registration failed, retrying in 10s: {}", e);
+                            let _ = window.emit_event("node-status", &NodeStatus::Registering);
+                            tokio::time::sleep(Duration::from_secs(10)).await;
+                        }
+                    }
                 }
-            }
-        });
+                if let Err(e) = client.start_websocket(task_tx.clone()).await {
+                    warn!("WebSocket unavailable, falling back to HTTP polling: {}", e);
+                    if let Err(e) = client.start_task_polling(task_tx).await {
+                        error!("Failed to start task polling: {}", e);
+                    }
+                }
+            })
+        };
         self.orchestrator_handle = Some(orchestrator_handle);
         self.orchestrator_client = Some(orchestrator_client);
 

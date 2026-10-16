@@ -4,6 +4,31 @@
       "epochId": 497589,
       "tx": "0x9de4ae04d636bbb4a495f079a480f132f74d3c3f45908b57b4888167f26f3c7e",
       "earners": 1
+    },
+    {
+      "epochId": 497590,
+      "tx": "0xcd0bea3d4904e066dc3afa261a38cdb1df3ee6f0d8a9f337f289f7a1afec16c8",
+      "earners": 1
+    },
+    {
+      "epochId": 497591,
+      "tx": "0xb8b3f128586e1d250615882913e08ce19a913dd4aa1675c4089e7411b4bdcc9a",
+      "earners": 1
+    },
+    {
+      "epochId": 497592,
+      "tx": "0xe3328068be949906d627f0e78a0a7a6cc92ff441e38592876d3b5299d3277b5a",
+      "earners": 1
+    },
+    {
+      "epochId": 497593,
+      "tx": "0xb9226e6e37de8bc03fc9c25d2074dfc25b8e7cacf2797a5458ce30e9dde417dc",
+      "earners": 1
+    },
+    {
+      "epochId": 497594,
+      "tx": "0x117c334d2b54333e49492fd3dc7df5fa49932706a2e57dbaa0d166c5668853bc",
+      "earners": 1
     }
   ]
 }

@@ -1,0 +1,18 @@
+[Unit]
+Description=Bees Network orchestrator (local beta)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT__/deploy
+ExecStart=__NODE__ __ROOT__/deploy/orchestrator.mjs
+Environment=ORCHESTRATOR_HOST=127.0.0.1
+Environment=ORCHESTRATOR_PORT=8080
+Restart=always
+RestartSec=5
+StandardOutput=append:__STATE__/orchestrator.log
+StandardError=append:__STATE__/orchestrator.log
+
+[Install]
+WantedBy=default.target

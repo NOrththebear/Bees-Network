@@ -51,6 +51,12 @@ impl OrchestratorClient {
         }
     }
 
+    /// Pre-seed the node id so task polling can start before (or without) a
+    /// successful registration round-trip with the orchestrator.
+    pub async fn set_node_id(&self, node_id: String) {
+        *self.node_id.write().await = Some(node_id);
+    }
+
     pub async fn register_node(&self, node_info: NodeInfo) -> Result<String, String> {
         let config = self.config.read().await;
         let url = format!("{}/nodes", config.base_url);

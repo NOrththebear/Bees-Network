@@ -1,0 +1,25 @@
+[Unit]
+Description=Bees Network desktop app (beta)
+Documentation=file:__ROOT__/deploy/README.md
+After=graphical-session.target
+PartOf=graphical-session.target
+# Never give up: keep retrying until the X session is ready (boot/login race).
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bee-node
+Environment=DISPLAY=__DISPLAY__
+Environment=XAUTHORITY=__XAUTHORITY__
+Environment=XDG_RUNTIME_DIR=%t
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
+# Self-heal: relaunch the app (and its in-process node) if it ever exits/crashes.
+Restart=always
+RestartSec=10
+KillMode=mixed
+TimeoutStopSec=15
+StandardOutput=append:__STATE__/bee-node-app.log
+StandardError=append:__STATE__/bee-node-app.log
+
+[Install]
+WantedBy=graphical-session.target

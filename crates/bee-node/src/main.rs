@@ -238,6 +238,45 @@ mod tauri_app {
         ));
 
         builder
+            .setup(|app| {
+                let state: State<TauriState> = app.state();
+                let inner = state.inner.clone();
+                let window = app.get_webview_window("main");
+                tauri::async_runtime::spawn(async move {
+                    // Give the window a moment to appear before doing network work.
+                    tokio::time::sleep(Duration::from_secs(3)).await;
+                    let auto_start = { inner.read().await.config.read().await.auto_start };
+                    if !auto_start {
+                        return;
+                    }
+                    if inner.read().await.node_worker.read().await.is_some() {
+                        return;
+                    }
+                    let config = { inner.read().await.config.read().await.clone() };
+                    if config.wallet.lock_hash.is_empty() {
+                        warn!("auto-start skipped: wallet not configured");
+                        return;
+                    }
+                    let Some(win) = window else {
+                        warn!("auto-start skipped: main window not found");
+                        return;
+                    };
+                    let mut worker = match NodeWorker::new(config, crate::types::TauriWindow(win)).await {
+                        Ok(w) => w,
+                        Err(e) => {
+                            warn!("auto-start: failed to create node worker: {}", e);
+                            return;
+                        }
+                    };
+                    if let Err(e) = worker.start().await {
+                        warn!("auto-start: failed to start node: {}", e);
+                        return;
+                    }
+                    *inner.write().await.node_worker.write().await = Some(worker);
+                    info!("Node auto-started (config.auto_start=true)");
+                });
+                Ok(())
+            })
             .manage(TauriState {
                 inner: app_state.clone(),
             })

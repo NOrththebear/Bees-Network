@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Bee Network Node
+Comment=Bees Network desktop node (beta)
+Exec=/usr/bin/bee-node
+Terminal=false
+X-GNOME-Autostart-enabled=true

@@ -5,7 +5,7 @@ import { Card } from '@/components/ui';
 import { Toggle } from '@/components/ui';
 import { Input } from '@/components/ui';
 import { Button } from '@/components/ui';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { isTauri, tauriInvoke } from '@/lib/tauri';
 import { ensureFiberKeys, deriveLockHashSync } from '@/lib/fiber-keys';
 import { getOrCreateDeviceId } from '@/hooks/useFiberAccount';
@@ -14,6 +14,12 @@ const RocketIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M4.484 16.886a.5.5 0 01-.14-.88l8-10a.5.5 0 01.882.14l4.111 4.11a.5.5 0 01-.14.88l-1.57 1.571a4.5 4.5 0 01-6.364 0l-1.57-1.57a.5.5 0 01-.14-.88z" />
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v8m0-8h8m-8 0l3-3m-3 3l-3 3m0-8v8m0 0l3-3m-3 3l-3-3" />
+  </svg>
+);
+
+const ServerIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
   </svg>
 );
 
@@ -85,7 +91,6 @@ export default function AppSettings() {
   const [nodeStatus, setNodeStatus] = useState<string>('stopped');
   const [nodeBusy, setNodeBusy] = useState(false);
   const [nodeError, setNodeError] = useState<string | null>(null);
-  const autoStarted = useRef(false);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [walletSuccess, setWalletSuccess] = useState(false);
   // Evaluated once on mount (post-hydration) so the UI deterministically
@@ -283,19 +288,20 @@ export default function AppSettings() {
     }
   };
 
-  // Auto-start the node once, when enabled and the wallet is linked.
-  useEffect(() => {
-    if (inTauri && walletInitialized && autoStart && !autoStarted.current) {
-      autoStarted.current = true;
-      void handleStartNode();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inTauri, walletInitialized, autoStart]);
-
-  const handleAutoStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAutoStartChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const checked = e.target.checked;
     setAutoStart(checked);
     localStorage.setItem('bees_auto_start', checked.toString());
+    // Persist to the backend config too: the Rust side auto-starts the node on
+    // launch based on config.auto_start (independent of this page being open).
+    if (isTauri()) {
+      try {
+        const cfg = await tauriInvoke<Record<string, unknown>>('get_node_config');
+        await tauriInvoke('save_node_config', { config: { ...cfg, auto_start: checked } });
+      } catch {
+        /* best effort */
+      }
+    }
   };
 
   const handleAutoUpdateChange = (e: React.ChangeEvent<HTMLInputElement>) => {

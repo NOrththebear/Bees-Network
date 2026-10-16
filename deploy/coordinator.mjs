@@ -10,6 +10,7 @@
 //         EPOCH_ID (default: latest on-chain epoch id + 1)
 //         POOL     (default 1e18 tRELAY units, off-chain bookkeeping)
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { rpc, scriptHash, signSighashGroups, sendAndWait, getLive, groupInputsByLock } from "./chain.mjs";
 import {
   computePoints, encodeEpoch, encodeShare, rewardLeaf, merkleRoot,
@@ -25,8 +26,17 @@ const CODE = {
   epoch: "0x36074a1c44e9c6b6d741c0934a905cbbaeb6f0b12cb69513b91ccefd586786e1",
   rewards: "0xa717298157262884a0e4e70a50c17486ad264554cadaca20efa8a90086f2cd84",
 };
+// Code cell tx (rewards :0x2, epoch :0x1). Redeployed under a dedicated code
+// lock so funding selection can never spend the contract code (see
+// deploy/recover-code.mjs).
+const CODE_TX = "0xd17ade10703f2c492e8fcf1543ed6723403a6ec2f1b14683ecf8b713bbf62c71";
 const REGISTRY_ID = "0x1693da11047c21d4995d5f2d71f09dc8f102368761c14d931a4a979c28117db7";
 const OP_HASH = scriptHash(OP);
+// Never select contract code cells as funding, even though the legacy ones are
+// OP-locked and untyped (this is what consumed them before).
+const PROTECTED = new Set(
+  Array.from({ length: 5 }, (_, i) => `0x6b6f4f43bff47259f6603b5658db61e3e350d7e98ad98639063f6073646f8173:0x${i.toString(16)}`),
+);
 const ORCH = process.env.ORCHESTRATOR_URL ?? "http://127.0.0.1:8080";
 const POOL = BigInt(process.env.POOL ?? "1000000000000000000");
 const SHANNON = 100_000_000n;
@@ -67,20 +77,31 @@ function decodeRegistry(raw) {
   return entries;
 }
 
-async function latestEpochId() {
+async function latestEpoch() {
   const res = await rpc("get_cells", [
     { script: { code_hash: CODE.epoch, hash_type: "data2", args: "0x" }, script_type: "type", script_search_mode: "prefix", with_data: true },
     "asc", "0x64",
   ]);
-  let max = 0n;
+  let best = null;
   for (const o of res.objects) {
     const b = Buffer.from(o.output_data.slice(2), "hex");
-    if (b.length === 158) {
-      const id = b.readBigUInt64LE(6);
-      if (id > max) max = id;
+    if (b.length !== 158) continue;
+    const id = b.readBigUInt64LE(6);
+    if (!best || id > best.id) {
+      best = { id, rewardsRoot: `0x${b.subarray(126, 158).toString("hex")}` };
     }
   }
-  return max;
+  return best;
+}
+
+// Count live (unclaimed) reward/share cells for an epoch.
+async function unclaimedShares(epochId, rewardsRoot) {
+  const lock = { code_hash: CODE.rewards, hash_type: "data2", args: rewardsLockArgs(epochId, rewardsRoot) };
+  const res = await rpc("get_cells", [
+    { script: lock, script_type: "lock", script_search_mode: "exact" },
+    "asc", "0x64",
+  ]);
+  return res.objects.length;
 }
 
 async function pickFunding(minShannons) {
@@ -93,6 +114,7 @@ async function pickFunding(minShannons) {
     const res = await rpc("get_cells", params);
     for (const c of res.objects) {
       if (c.output.type) continue; // typed cells can't be spent as plain funding
+      if (PROTECTED.has(`${c.out_point.tx_hash}:${c.out_point.index}`)) continue;
       out.push(c.out_point);
       cap += BigInt(c.output.capacity);
       if (cap >= minShannons) break;
@@ -133,7 +155,7 @@ async function buildTx({ inputs, outputs, outputsData, cellDeps, label }) {
   return sendAndWait(clean, label);
 }
 
-async function main() {
+export async function runCoordinator() {
   const t = await tally();
   const byNode = new Map(t.map((n) => [n.node_id.toLowerCase(), n]));
   const reg = decodeRegistry((await registryCell()).data);
@@ -148,10 +170,28 @@ async function main() {
   }
   if (earners.length === 0) {
     console.log("No earning nodes (no beats/bytes in tally). Nothing to close.");
-    return;
+    return { closed: false, earners: 0 };
   }
 
-  const epochId = process.env.EPOCH_ID ? BigInt(process.env.EPOCH_ID) : (await latestEpochId()) + 1n;
+  // Guard: minting a new epoch while the head epoch is still unclaimed wastes
+  // operator capacity (the desktop app only claims the latest epoch and would
+  // never reach the older shares). Wait for the head to be claimed first.
+  let epochId;
+  if (process.env.EPOCH_ID) {
+    epochId = BigInt(process.env.EPOCH_ID);
+  } else {
+    const head = await latestEpoch();
+    if (head) {
+      const pending = await unclaimedShares(head.id, head.rewardsRoot);
+      if (pending > 0) {
+        console.log(`epoch ${head.id} still has ${pending} unclaimed share(s); waiting for claim before closing a new epoch.`);
+        return { closed: false, reason: "unclaimed", epochId: Number(head.id) };
+      }
+      epochId = head.id + 1n;
+    } else {
+      epochId = 1n;
+    }
+  }
 
   // Points ledger (epoch.merkle_root).
   const pLeaves = earners.map((e) => pointsLeaf(e.nodeId, e.netPts, e.upPts, e.bytes));
@@ -198,7 +238,7 @@ async function main() {
     inputs: fund.outPoints,
     outputs,
     outputsData: datas,
-    cellDeps: [SECP_DEP, { out_point: { tx_hash: "0x6b6f4f43bff47259f6603b5658db61e3e350d7e98ad98639063f6073646f8173", index: "0x1" }, dep_type: "code" }, { out_point: { tx_hash: "0x6b6f4f43bff47259f6603b5658db61e3e350d7e98ad98639063f6073646f8173", index: "0x2" }, dep_type: "code" }],
+    cellDeps: [SECP_DEP, { out_point: { tx_hash: CODE_TX, index: "0x1" }, dep_type: "code" }, { out_point: { tx_hash: CODE_TX, index: "0x2" }, dep_type: "code" }],
     label: `coordinator close epoch ${epochId}`,
   });
 
@@ -211,6 +251,10 @@ async function main() {
   const J = existsSync(jp) ? JSON.parse(readFileSync(jp, "utf8")) : { epochs: [] };
   J.epochs.push({ epochId: Number(epochId), tx: hash, earners: earners.length });
   writeFileSync(jp, JSON.stringify(J, null, 2));
+  return { closed: true, tx: hash, epochId: Number(epochId), earners: earners.length };
 }
 
-main().catch((e) => { console.error("FATAL:", e?.stack ?? e); process.exit(1); });
+// Only auto-run when invoked directly (not when imported by the loop).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runCoordinator().catch((e) => { console.error("FATAL:", e?.stack ?? e); process.exit(1); });
+}

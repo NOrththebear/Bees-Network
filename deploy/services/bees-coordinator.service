@@ -1,0 +1,21 @@
+[Unit]
+Description=Bees Network coordinator loop (local beta)
+After=network-online.target bees-orchestrator.service
+Wants=network-online.target bees-orchestrator.service
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT__/deploy
+ExecStart=__NODE__ __ROOT__/deploy/coordinator-loop.mjs
+Environment=CKB_RPC=https://testnet.ckb.dev
+Environment=ORCHESTRATOR_URL=http://127.0.0.1:8080
+Environment=COORDINATOR_INTERVAL_SECS=300
+Environment=COORDINATOR_MIN_NEW_BEATS=1
+Environment=COORDINATOR_STATE_FILE=__STATE__/coordinator-loop-state.json
+Restart=always
+RestartSec=15
+StandardOutput=append:__STATE__/coordinator.log
+StandardError=append:__STATE__/coordinator.log
+
+[Install]
+WantedBy=default.target

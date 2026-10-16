@@ -5,6 +5,8 @@ import { NETWORK, CODE_HASHES, POINTS_CONFIG, type NetworkKey } from '@/lib/conf
 import { getIndexerClient, findCellsByType, findCellsByLock } from '@/lib/rpc';
 
 const FETCH_TIMEOUT = 15000;
+// How often to silently re-poll chain data so the dashboard stays live.
+const POLL_INTERVAL_MS = 20000;
 
 /**
  * Runs `work` with a real timeout: aborts the underlying fetch via signal
@@ -96,8 +98,8 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
     process.env.NEXT_PUBLIC_BEES_MOCK === 'true'
   );
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
 
     // Return mock data immediately if enabled
@@ -228,13 +230,13 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
 } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch data';
       console.error('Bees data fetch error:', message);
+      // Surface the error rather than showing fabricated numbers: for the beta
+      // the dashboard must reflect real chain state (or a clear error).
       setError(message);
-      // Fallback mock data for demo
-      const mockData = generateMockData(userLockHash);
-      setRegistry(mockData.registry);
-      setEpochs(mockData.epochs);
-      setShares(mockData.shares);
-      setUserHarvest(mockData.userHarvest);
+      setRegistry(null);
+      setEpochs([]);
+      setShares([]);
+      setUserHarvest(null);
     } finally {
       setLoading(false);
     }
@@ -243,11 +245,22 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
   useEffect(() => {
     // Scheduled (not synchronous) so the initial setLoading(true) inside
     // fetchData doesn't cascade-render from within the effect body.
-    const t = setTimeout(() => void fetchData(), 0);
-    return () => clearTimeout(t);
+    const t = setTimeout(() => void fetchData(false), 0);
+    // Silently re-poll so the dashboard reflects new epochs/shares as the
+    // coordinator closes them, and refetch whenever the window regains focus.
+    const interval = setInterval(() => void fetchData(true), POLL_INTERVAL_MS);
+    const onFocus = () => void fetchData(true);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      clearTimeout(t);
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, [fetchData]);
 
-  return { registry, epochs, shares, userHarvest, loading, error, refetch: fetchData };
+  return { registry, epochs, shares, userHarvest, loading, error, refetch: () => void fetchData(false) };
 }
 
 function decodeRegistryData(dataHex: string): { operatorLockHash: string; nodes: NodeEntry[] } {
