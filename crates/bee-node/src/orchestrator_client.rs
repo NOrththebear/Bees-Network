@@ -51,6 +51,23 @@ impl OrchestratorClient {
         }
     }
 
+    /// Fetch aggregate + per-node network activity from the orchestrator's
+    /// public `/stats` endpoint. Used by the dashboard for live telemetry
+    /// (requests served, bytes transferred) without touching the chain.
+    pub async fn fetch_stats(&self) -> Result<Value, String> {
+        let config = self.config.read().await;
+        let url = format!("{}/stats", config.base_url);
+        let resp = self.http_client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("orchestrator /stats: {}", e))?;
+        if !resp.status().is_success() {
+            return Err(format!("orchestrator /stats -> {}", resp.status()));
+        }
+        resp.json::<Value>().await.map_err(|e| e.to_string())
+    }
+
     /// Pre-seed the node id so task polling can start before (or without) a
     /// successful registration round-trip with the orchestrator.
     pub async fn set_node_id(&self, node_id: String) {

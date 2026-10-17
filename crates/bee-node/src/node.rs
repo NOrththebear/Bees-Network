@@ -23,6 +23,7 @@ pub struct NodeWorker {
     worker_handle: Option<JoinHandle<()>>,
     heartbeat_handle: Option<JoinHandle<()>>,
     beats_handle: Option<JoinHandle<()>>,
+    autoclaim_handle: Option<JoinHandle<()>>,
     orchestrator_handle: Option<JoinHandle<()>>,
     result_handle: Option<JoinHandle<()>>,
     orchestrator_client: Option<OrchestratorClient>,
@@ -51,6 +52,7 @@ impl NodeWorker {
             worker_handle: None,
             heartbeat_handle: None,
             beats_handle: None,
+            autoclaim_handle: None,
             orchestrator_handle: None,
             result_handle: None,
             orchestrator_client: Some(orchestrator_client),
@@ -176,6 +178,12 @@ impl NodeWorker {
         let beats_handle = self.start_beats_reporter().await;
         self.beats_handle = Some(beats_handle);
 
+        // Auto-claim this wallet's rewards from the head epoch so epochs keep
+        // advancing without a manual click (the coordinator waits for the head
+        // share to be claimed before minting the next epoch).
+        let autoclaim_handle = self.start_autoclaim().await;
+        self.autoclaim_handle = Some(autoclaim_handle);
+
         *self.status.write().await = NodeStatus::Running;
         self.emit_status().await;
 
@@ -193,6 +201,9 @@ impl NodeWorker {
             handle.abort();
         }
         if let Some(handle) = self.beats_handle.take() {
+            handle.abort();
+        }
+        if let Some(handle) = self.autoclaim_handle.take() {
             handle.abort();
         }
         if let Some(handle) = self.orchestrator_handle.take() {
@@ -293,6 +304,37 @@ impl NodeWorker {
                     info!("Reporting beats off-chain: beats={}, bytes={}", beats, bytes);
                     *total_beats.write().await = 0;
                     *total_bytes.write().await = 0;
+                }
+            }
+        })
+    }
+
+    /// Periodically claim this wallet's reward shares from the head epoch.
+    /// No user signature is needed (the share input is rewards-lock and the
+    /// payout is bound to the wallet lock), so this can run unattended.
+    async fn start_autoclaim(&self) -> JoinHandle<()> {
+        let config = self.config.clone();
+        let status = self.status.clone();
+
+        tokio::spawn(async move {
+            // Give startup/registration a moment, then poll.
+            let mut interval = tokio::time::interval(Duration::from_secs(90));
+            interval.tick().await; // consume the immediate first tick
+            loop {
+                interval.tick().await;
+
+                if !matches!(*status.read().await, NodeStatus::Running) {
+                    continue;
+                }
+                if config.wallet.lock_hash.is_empty() {
+                    continue;
+                }
+                match crate::chain::claim_rewards_onchain(&config.wallet, &config.network).await {
+                    Ok(amount) if amount > 0 => {
+                        info!("auto-claimed {} shannon(s) of rewards", amount);
+                    }
+                    Ok(_) => {}
+                    Err(e) => debug!("auto-claim found nothing or failed: {}", e),
                 }
             }
         })

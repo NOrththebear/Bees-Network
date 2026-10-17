@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui';
 import { Card } from '@/components/ui';
-import { useBeesData } from '@/hooks/useBeesData';
+import { useBeesData, pickUserNode } from '@/hooks/useBeesData';
 import { useFiberAccount, formatFiberPubkey } from '@/hooks/useFiberAccount';
-import { formatAmountWithUnit } from '@/hooks/useBeesData';
+import { formatAmount, formatAmountWithUnit } from '@/hooks/useBeesData';
 
 const UserIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} {...props}>
@@ -83,7 +83,7 @@ const BoltIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function Account() {
   const { account, lockHash: userLockHash, fiberPubkey, fiberStatus, channels } = useFiberAccount('testnet');
-  const { registry, userHarvest, loading, error } = useBeesData(userLockHash, 'testnet');
+  const { registry, userHarvest, loading, error, activity } = useBeesData(userLockHash, 'testnet');
 
   const deviceId = account?.deviceId
     ?? (typeof window !== 'undefined'
@@ -91,9 +91,7 @@ export default function Account() {
       : 'BEE-7X9K-M2P4');
 
   // Get user's node from registry (match by Fiber-derived lock hash)
-  const userNode = userLockHash && registry?.nodes
-    ? registry.nodes.find(n => n.walletLockHash.toLowerCase() === userLockHash.toLowerCase())
-    : registry?.nodes[0];
+  const userNode = pickUserNode(registry?.nodes ?? [], userLockHash, { activity });
 
   if (loading) {
     return (
@@ -110,7 +108,7 @@ export default function Account() {
   }
 
   const creditsDisplay = formatAmountWithUnit(userHarvest?.totalHoney || 0n);
-  const pointsDisplay = formatAmountWithUnit(userHarvest?.totalNectar || 0n);
+  const pointsDisplay = formatAmount(userHarvest?.totalNectar || 0n, 0);
 
   return (
     <div className="min-h-screen bg-[var(--surface)] page-pad px-4">

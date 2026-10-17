@@ -72,6 +72,22 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { nodes: out, total_beats: out.reduce((a, n) => a + n.beats, 0) });
   }
 
+  // GET /stats  (public: aggregate + per-node live activity for dashboards)
+  if (req.method === "GET" && path === "/stats") {
+    const out = [...nodes.entries()].map(([node_id, n]) => ({
+      node_id, beats: n.beats, bytes: n.bytes, tasks_issued: n.tasks_issued, last_seen: n.last_seen,
+    }));
+    const now = nowMs();
+    return json(res, 200, {
+      nodes: out,
+      node_count: out.length,
+      active_nodes: out.filter((n) => now - n.last_seen < 60_000).length,
+      total_beats: out.reduce((a, n) => a + n.beats, 0),
+      total_bytes: out.reduce((a, n) => a + n.bytes, 0),
+      total_tasks: out.reduce((a, n) => a + n.tasks_issued, 0),
+    });
+  }
+
   // POST /admin/task  { node_id, task }
   if (req.method === "POST" && path === "/admin/task") {
     const body = await readBody(req);

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { NETWORK, CODE_HASHES, POINTS_CONFIG, type NetworkKey } from '@/lib/config';
 import { getIndexerClient, findCellsByType, findCellsByLock } from '@/lib/rpc';
+import { tauriInvoke } from '@/lib/tauri';
 
 const FETCH_TIMEOUT = 15000;
 // How often to silently re-poll chain data so the dashboard stays live.
@@ -68,8 +69,29 @@ export interface ShareData {
   upPts: number;
   bytes: number;
   amount: bigint;
+  capacity: bigint;
   outPoint: { txHash: string; index: string };
   status: 'live' | 'claimed';
+}
+
+export interface NodeActivity {
+  beats: number;
+  bytes: number;
+  tasksIssued: number;
+  lastSeen: number;
+}
+
+/**
+ * Live off-chain telemetry from the orchestrator. `requestsServed` is completed
+ * tasks (beats); `dataTransferred` is total bytes sent+received across nodes.
+ */
+export interface NetworkActivity {
+  requestsServed: number;
+  dataTransferred: number;
+  tasksIssued: number;
+  nodeCount: number;
+  activeNodes: number;
+  perNode: Record<string, NodeActivity>;
 }
 
 export interface UserHarvest {
@@ -84,11 +106,50 @@ export interface UserHarvest {
   userShares: ShareData[];
 }
 
+/**
+ * Resolve the operator's node from the registry. A wallet can own more than one
+ * registry entry, so prefer the node that earned in the current epoch, then one
+ * with live telemetry, then the busiest — and overlay live beats/bytes so the
+ * card isn't stuck on the stale on-chain values.
+ */
+export function pickUserNode(
+  nodes: NodeEntry[],
+  userLockHash: string | undefined,
+  opts?: { earnedNodeId?: string; activity?: NetworkActivity | null },
+): NodeEntry | undefined {
+  const candidates = userLockHash
+    ? nodes.filter((n) => n.walletLockHash.toLowerCase() === userLockHash.toLowerCase())
+    : nodes;
+  if (candidates.length === 0) return undefined;
+  const earned = opts?.earnedNodeId?.toLowerCase();
+  let node =
+    (earned ? candidates.find((n) => n.nodeId.toLowerCase() === earned) : undefined) ||
+    candidates.find((n) => opts?.activity?.perNode[n.nodeId.toLowerCase()]) ||
+    [...candidates].sort((a, b) => (b.beats + b.bytes) - (a.beats + a.bytes))[0];
+  const live = node ? opts?.activity?.perNode[node.nodeId.toLowerCase()] : undefined;
+  if (node && live) node = { ...node, beats: live.beats, bytes: live.bytes };
+  return node;
+}
+
+// In-memory cache of the best-known harvest. Module-level so it survives
+// client-side route changes (each page mounts a fresh hook instance); combined
+// with localStorage it makes the credits/points card instant and navigation-proof.
+let harvestCache: UserHarvest | null = null;
+
 export function useBeesData(userLockHash?: string, network: NetworkKey = 'testnet') {
   const [registry, setRegistry] = useState<RegistryData | null>(null);
   const [epochs, setEpochs] = useState<EpochData[]>([]);
   const [shares, setShares] = useState<ShareData[]>([]);
-  const [userHarvest, setUserHarvest] = useState<UserHarvest | null>(null);
+  // Seed synchronously from the module cache / localStorage so a remount shows
+  // the last known credits/points immediately instead of zeros.
+  const [userHarvest, setUserHarvest] = useState<UserHarvest | null>(
+    () => harvestCache ?? loadLastHarvest(userLockHash),
+  );
+  const [activity, setActivity] = useState<NetworkActivity | null>(null);
+  // Latest non-empty harvest, kept so the credits/points card stays populated
+  // during the brief window after a share is (auto-)claimed and before the next
+  // epoch's share is minted.
+  const lastHarvestRef = useRef<UserHarvest | null>(harvestCache ?? loadLastHarvest(userLockHash));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,6 +162,12 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
+
+    // Seed the in-memory fallback from persisted state so the credits/points
+    // card survives page navigation even when no share is live right now.
+    if (!lastHarvestRef.current && userLockHash) {
+      lastHarvestRef.current = loadLastHarvest(userLockHash);
+    }
 
     // Return mock data immediately if enabled
     if (useMock) {
@@ -168,11 +235,21 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
         const decoded = decodeShareData(cell.output_data);
         return {
           ...decoded,
+          capacity: BigInt(cell.output.capacity),
           outPoint: { txHash: cell.out_point.tx_hash, index: cell.out_point.index },
           status: 'live' as const,
         };
       });
       setShares(shareData);
+
+      // Live off-chain telemetry (requests served / bytes transferred). Bounded
+      // and non-fatal so the orchestrator being down can't stall or fail the
+      // on-chain view (falls back to null after 2s).
+      const act = await Promise.race([
+        fetchActivity(),
+        new Promise<null>((r) => setTimeout(() => r(null), 2000)),
+      ]);
+      setActivity(act);
 
       // Calculate user harvest from latest epoch
       if (epochData.length > 0 && shareData.length > 0) {
@@ -184,26 +261,29 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
           userShares = userShares.filter(s => s.walletLockHash.toLowerCase() === userLockHash.toLowerCase());
         }
         
-        // Find user's node in the freshly decoded registry (not the possibly
+        // Pick the user's node in the freshly decoded registry (not the possibly
         // stale `registry` state, which hasn't updated yet on first load).
-        let userNode: NodeEntry | undefined;
-        if (userLockHash) {
-          userNode = registryNodes.find(n => n.walletLockHash.toLowerCase() === userLockHash.toLowerCase());
-        }
+        const userNode = userLockHash
+          ? pickUserNode(registryNodes, userLockHash, { earnedNodeId: userShares[0]?.nodeId, activity: act })
+          : undefined;
 
-        // Sum all shares for this epoch
+        // Sum all shares for this epoch.
+        //   credits (honey)  = the claimable CKB the share cell actually pays out
+        //   points (nectar)  = observation points (net + up), which grow with
+        //                      the node's bytes/beats — NOT the nominal `amount`
+        //                      field (a fixed 1e18 bookkeeping pool).
         let totalHoney = 0n;
         let totalNectar = 0n;
         for (const share of userShares) {
-          totalHoney += share.amount;
-          totalNectar += share.amount;
+          totalHoney += share.capacity;
+          totalNectar += BigInt(share.netPts + share.upPts);
         }
 
         // Calculate network quality based on pool vs potential
         const poolCKB = Number(latestEpoch.pool) / 1e8;
         const networkQuality = Math.min(100, Math.max(0, Math.round((poolCKB / 1000) * 100)));
 
-        setUserHarvest({
+        const nextHarvest: UserHarvest = {
           totalHoney,
           totalNectar,
           epoch: latestEpoch.epochId,
@@ -213,7 +293,23 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
           userLockHash,
           userNode,
           userShares,
-        });
+        };
+        // If this epoch's user share was just (auto-)claimed there is nothing
+        // live yet; keep the previous card values instead of flashing to zero.
+        if (userShares.length > 0 || !lastHarvestRef.current) {
+          lastHarvestRef.current = nextHarvest;
+          saveLastHarvest(nextHarvest);
+        }
+        // ALWAYS reflect the best-known harvest in React state — otherwise a
+        // remount that lands on a no-live-share moment leaves state at null.
+        if (lastHarvestRef.current) {
+          harvestCache = lastHarvestRef.current;
+          setUserHarvest(lastHarvestRef.current);
+        }
+      } else if (lastHarvestRef.current) {
+        // Shares briefly absent between epochs — keep the last known reward.
+        harvestCache = lastHarvestRef.current;
+        setUserHarvest(lastHarvestRef.current);
       } else {
         setUserHarvest({
           totalHoney: 0n,
@@ -260,7 +356,46 @@ export function useBeesData(userLockHash?: string, network: NetworkKey = 'testne
     };
   }, [fetchData]);
 
-  return { registry, epochs, shares, userHarvest, loading, error, refetch: () => void fetchData(false) };
+  return { registry, epochs, shares, userHarvest, activity, loading, error, refetch: () => void fetchData(false) };
+}
+
+interface RawStats {
+  nodes?: Array<{ node_id: string; beats: number; bytes: number; tasks_issued: number; last_seen: number }>;
+  node_count?: number;
+  active_nodes?: number;
+  total_beats?: number;
+  total_bytes?: number;
+  total_tasks?: number;
+}
+
+/**
+ * Pull live network activity from the orchestrator via the node (Tauri). Returns
+ * null when telemetry is unavailable (web dev, orchestrator offline) so the UI
+ * can show a placeholder instead of fabricated numbers.
+ */
+async function fetchActivity(): Promise<NetworkActivity | null> {
+  try {
+    const raw = await tauriInvoke<RawStats>('get_orchestrator_stats');
+    const perNode: Record<string, NodeActivity> = {};
+    for (const n of raw.nodes ?? []) {
+      perNode[n.node_id.toLowerCase()] = {
+        beats: n.beats,
+        bytes: n.bytes,
+        tasksIssued: n.tasks_issued,
+        lastSeen: n.last_seen,
+      };
+    }
+    return {
+      requestsServed: raw.total_beats ?? 0,
+      dataTransferred: raw.total_bytes ?? 0,
+      tasksIssued: raw.total_tasks ?? 0,
+      nodeCount: raw.node_count ?? (raw.nodes?.length ?? 0),
+      activeNodes: raw.active_nodes ?? 0,
+      perNode,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function decodeRegistryData(dataHex: string): { operatorLockHash: string; nodes: NodeEntry[] } {
@@ -298,7 +433,7 @@ function decodeEpochData(dataHex: string): Omit<EpochData, 'outPoint' | 'status'
   return { epochId, registryId, merkleRoot, evidenceHash, pool, rewardsRoot };
 }
 
-function decodeShareData(dataHex: string): Omit<ShareData, 'outPoint' | 'status'> {
+function decodeShareData(dataHex: string): Omit<ShareData, 'outPoint' | 'status' | 'capacity'> {
   if (!dataHex || dataHex === '0x' || dataHex.length < 112) {
     return { epochId: 0, nodeId: '0x' + '00'.repeat(32), walletLockHash: '0x' + '00'.repeat(32), netPts: 0, upPts: 0, bytes: 0, amount: 0n };
   }
@@ -365,6 +500,49 @@ function generateDeviceId(): string {
   return 'BEE-XXXX-XXXX-XXXX';
 }
 
+// The dashboard earns credits/points from *live* reward-share cells, but the
+// node auto-claims the head epoch within ~90s, so most of the time there is no
+// live share on-chain. Persist the last seen harvest so navigating between
+// pages (which remounts this hook) can't reset the card to zero.
+const LAST_HARVEST_KEY = 'bees_last_harvest_v1';
+
+function loadLastHarvest(lockHash?: string): UserHarvest | null {
+  if (typeof window === 'undefined' || !lockHash) return null;
+  try {
+    const raw = localStorage.getItem(LAST_HARVEST_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { lockHash?: string; epoch?: number; credits?: string; points?: string };
+    if (!v.lockHash || v.lockHash.toLowerCase() !== lockHash.toLowerCase()) return null;
+    return {
+      totalHoney: BigInt(v.credits ?? '0'),
+      totalNectar: BigInt(v.points ?? '0'),
+      epoch: v.epoch ?? 0,
+      networkQuality: 0,
+      deviceId: generateDeviceId(),
+      isConnected: true,
+      userLockHash: lockHash,
+      userShares: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveLastHarvest(h: UserHarvest): void {
+  if (typeof window === 'undefined' || !h.userLockHash) return;
+  try {
+    localStorage.setItem(LAST_HARVEST_KEY, JSON.stringify({
+      lockHash: h.userLockHash,
+      epoch: h.epoch,
+      credits: h.totalHoney.toString(),
+      points: h.totalNectar.toString(),
+      savedAt: Date.now(),
+    }));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 function generateMockData(userLockHash?: string): {
   registry: RegistryData;
   epochs: EpochData[];
@@ -407,6 +585,7 @@ function generateMockData(userLockHash?: string): {
       upPts: 62,
       bytes: mockNodes[0].bytes,
       amount: 858_00000000n,
+      capacity: 300_00000000n,
       outPoint: { txHash: '0x' + '1'.repeat(64), index: '0x0' },
       status: 'live',
     },
@@ -418,6 +597,7 @@ function generateMockData(userLockHash?: string): {
       upPts: 58,
       bytes: 48_000_000,
       amount: 720_00000000n,
+      capacity: 250_00000000n,
       outPoint: { txHash: '0x' + '2'.repeat(64), index: '0x0' },
       status: 'claimed',
     },
@@ -429,6 +609,7 @@ function generateMockData(userLockHash?: string): {
       upPts: 44,
       bytes: mockNodes[1].bytes,
       amount: 510_00000000n,
+      capacity: 200_00000000n,
       outPoint: { txHash: '0x' + '3'.repeat(64), index: '0x0' },
       status: 'live',
     },
@@ -440,8 +621,8 @@ function generateMockData(userLockHash?: string): {
   let totalHoney = 0n;
   let totalNectar = 0n;
   for (const share of userShares) {
-    totalHoney += share.amount;
-    totalNectar += share.amount;
+    totalHoney += share.capacity;
+    totalNectar += BigInt(share.netPts + share.upPts);
   }
 
   return {

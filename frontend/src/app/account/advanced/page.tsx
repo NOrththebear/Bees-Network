@@ -3,7 +3,7 @@
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui';
 import { Button } from '@/components/ui';
-import { useBeesData } from '@/hooks/useBeesData';
+import { useBeesData, pickUserNode } from '@/hooks/useBeesData';
 import { useFiberAccount } from '@/hooks/useFiberAccount';
 
 const WifiIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -44,7 +44,7 @@ const ServerIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function AdvancedSettings() {
   const { account, lockHash: userLockHash, fiberStatus, fiberError, resetAccount } = useFiberAccount('testnet');
-  const { registry, userHarvest, loading } = useBeesData(userLockHash, 'testnet');
+  const { registry, userHarvest, loading, activity } = useBeesData(userLockHash, 'testnet');
 
   if (loading) {
     return (
@@ -61,9 +61,7 @@ export default function AdvancedSettings() {
   }
 
   // Get user's node from registry
-  const userNode = userLockHash && registry?.nodes 
-    ? registry.nodes.find(n => n.walletLockHash.toLowerCase() === userLockHash.toLowerCase())
-    : registry?.nodes[0];
+  const userNode = pickUserNode(registry?.nodes ?? [], userLockHash, { activity });
 
   const isRegistered = !!userNode;
 

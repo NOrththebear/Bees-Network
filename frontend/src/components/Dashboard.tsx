@@ -10,13 +10,13 @@ import { BRAND } from '@/lib/config';
 
 export function Dashboard() {
   const { lockHash } = useFiberAccount('testnet');
-  const { registry, epochs, shares, loading, error, refetch } = useBeesData(lockHash, 'testnet');
+  const { registry, epochs, shares, activity, loading, error, refetch } = useBeesData(lockHash, 'testnet');
 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="card animate-pulse">
               <div className="h-4 bg-[var(--border)] rounded w-3/4 mb-2"></div>
               <div className="h-8 bg-[var(--border)] rounded w-1/2"></div>
@@ -74,6 +74,18 @@ export function Dashboard() {
         <StatsGrid
           stats={[
             { label: 'Registered Nodes', value: totalNodes, subValue: `${eligibleNodes} eligible`, icon: 'nodes' },
+            {
+              label: 'Requests Served',
+              value: activity ? activity.requestsServed.toLocaleString() : '—',
+              subValue: activity ? `${activity.activeNodes} active now` : 'telemetry offline',
+              icon: 'requests',
+            },
+            {
+              label: 'Data Transferred',
+              value: activity ? formatBytes(activity.dataTransferred) : '—',
+              subValue: activity ? `${activity.tasksIssued.toLocaleString()} tasks issued` : 'telemetry offline',
+              icon: 'data',
+            },
             { label: 'Epochs Closed', value: totalEpochs, subValue: latestEpoch ? `Latest: #${latestEpoch.epochId}` : '—', icon: 'epochs' },
             { label: 'Reward Shares', value: totalShares, subValue: `${liveShares} live • ${claimedShares} claimed`, icon: 'shares' },
             { label: 'Total Pool', value: formatCKB(totalPool), subValue: 'CKB across epochs', icon: 'pool' },
@@ -82,13 +94,20 @@ export function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <RegistrySection registry={registry} />
+        <RegistrySection registry={registry} live={activity?.perNode} />
         <EpochsSection epochs={epochs} />
       </div>
 
       <RewardsSection shares={shares} />
     </div>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(2)} GB`;
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(2)} MB`;
+  if (bytes >= 1_000) return `${(bytes / 1_000).toFixed(2)} KB`;
+  return `${bytes} B`;
 }
 
 function formatCKB(shannons: bigint): string {

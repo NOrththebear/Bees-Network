@@ -6,10 +6,20 @@ interface Stat {
   label: string;
   value: string | number;
   subValue: string;
-  icon: 'nodes' | 'epochs' | 'shares' | 'pool';
+  icon: 'nodes' | 'epochs' | 'shares' | 'pool' | 'requests' | 'data';
 }
 
 const Icons = {
+  requests: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+    </svg>
+  ),
+  data: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+    </svg>
+  ),
   nodes: (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -37,11 +47,13 @@ const IconColors = {
   epochs: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
   shares: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
   pool: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+  requests: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400',
+  data: 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
 };
 
 export function StatsGrid({ stats }: { stats: Stat[] }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {stats.map((stat, i) => (
         <div key={i} className="card group">
           <div className="flex items-start justify-between">

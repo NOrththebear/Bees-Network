@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useBeesData, formatAmountWithUnit } from '@/hooks/useBeesData';
+import { useBeesData, formatAmount, formatAmountWithUnit } from '@/hooks/useBeesData';
 import { useFiberAccount, formatFiberPubkey } from '@/hooks/useFiberAccount';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui';
@@ -89,7 +89,7 @@ export default function Dashboard() {
   };
 
   const creditsDisplay = formatAmountWithUnit(harvest.totalHoney);
-  const pointsDisplay = formatAmountWithUnit(harvest.totalNectar);
+  const pointsDisplay = formatAmount(harvest.totalNectar, 0);
 
   return (
     <div className="min-h-screen bg-[var(--surface)] page-pad px-4">

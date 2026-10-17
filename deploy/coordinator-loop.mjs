@@ -73,6 +73,8 @@ async function tick(state) {
         state.lastClosedTotal = total;
         saveState(state);
         log(`closed epoch ${res.epochId} tx=${res.tx} earners=${res.earners}`);
+      } else if (res?.reason === "unclaimed") {
+        log(`head epoch ${res.epochId} unclaimed — waiting for claim before closing`);
       } else {
         log("no earning nodes; not closing");
       }

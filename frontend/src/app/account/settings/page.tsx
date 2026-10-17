@@ -245,7 +245,10 @@ export default function AppSettings() {
       setClaiming(true);
       const amount = await tauriInvoke<number>('claim_rewards');
       if (!amount || amount <= 0) {
-        alert('Nothing to claim right now. Rewards appear after a coordinator closes an epoch that includes your node.');
+        alert(
+          'Nothing left to claim — your node claims each epoch automatically (every ~90s), ' +
+          'so rewards are usually already in your wallet. Epochs settle on-chain roughly every 5 minutes.',
+        );
       } else {
         alert(`Claimed ${(amount / 1e8).toFixed(4)} CKB`);
       }

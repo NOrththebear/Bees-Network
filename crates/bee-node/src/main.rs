@@ -212,6 +212,17 @@ mod tauri_app {
         Ok(amount)
     }
 
+    /// Live network telemetry for the dashboard: requests served and bytes
+    /// transferred, proxied from the orchestrator's public `/stats`. Off-chain
+    /// only — no chain writes (a metrics endpoint belongs off-chain).
+    #[tauri::command]
+    async fn get_orchestrator_stats() -> Result<serde_json::Value, String> {
+        let client = crate::orchestrator_client::OrchestratorClient::new(
+            crate::orchestrator_client::OrchestratorConfig::default(),
+        );
+        client.fetch_stats().await
+    }
+
     pub fn run() {
         tracing_subscriber::fmt()
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -291,6 +302,7 @@ mod tauri_app {
                 save_node_config,
                 register_node,
                 claim_rewards,
+                get_orchestrator_stats,
             ])
             .build(tauri::generate_context!())
             .expect("error while building tauri application")

@@ -1,12 +1,14 @@
 'use client';
 
-import { RegistryData } from '@/hooks/useBeesData';
+import { RegistryData, NodeActivity } from '@/hooks/useBeesData';
 
 interface RegistrySectionProps {
   registry: RegistryData | null;
+  /** Live per-node activity (keyed by lowercased node id) from the orchestrator. */
+  live?: Record<string, NodeActivity>;
 }
 
-export function RegistrySection({ registry }: RegistrySectionProps) {
+export function RegistrySection({ registry, live }: RegistrySectionProps) {
   if (!registry) {
     return (
       <div className="card">
@@ -51,19 +53,24 @@ export function RegistrySection({ registry }: RegistrySectionProps) {
                 </tr>
               </thead>
               <tbody>
-                {registry.nodes.map((node, i) => (
-                  <tr key={i} className="border-b border-[var(--border)]/50 last:border-0">
-                    <td className="py-2 pr-4 font-mono text-[var(--text)] truncate max-w-[120px]">{node.nodeId.slice(0, 14)}…</td>
-                    <td className="py-2 pr-4 font-mono text-[var(--text-muted)] truncate max-w-[120px]">{node.walletLockHash.slice(0, 14)}…</td>
-                    <td className="py-2 pr-4">
-                      <span className={`badge ${node.eligible ? 'badge-success' : 'badge-warning'}`}>
-                        {node.eligible ? 'Eligible' : 'Ineligible'}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-4 text-[var(--text)] tabular-nums">{node.beats.toLocaleString()}</td>
-                    <td className="py-2 text-[var(--text)] tabular-nums">{formatBytes(node.bytes)}</td>
-                  </tr>
-                ))}
+                {registry.nodes.map((node, i) => {
+                  const act = live?.[node.nodeId.toLowerCase()];
+                  const beats = act ? act.beats : node.beats;
+                  const bytes = act ? act.bytes : node.bytes;
+                  return (
+                    <tr key={i} className="border-b border-[var(--border)]/50 last:border-0">
+                      <td className="py-2 pr-4 font-mono text-[var(--text)] truncate max-w-[120px]">{node.nodeId.slice(0, 14)}…</td>
+                      <td className="py-2 pr-4 font-mono text-[var(--text-muted)] truncate max-w-[120px]">{node.walletLockHash.slice(0, 14)}…</td>
+                      <td className="py-2 pr-4">
+                        <span className={`badge ${node.eligible ? 'badge-success' : 'badge-warning'}`}>
+                          {node.eligible ? 'Eligible' : 'Ineligible'}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 text-[var(--text)] tabular-nums">{beats.toLocaleString()}</td>
+                      <td className="py-2 text-[var(--text)] tabular-nums">{formatBytes(bytes)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

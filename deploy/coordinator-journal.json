@@ -39,6 +39,71 @@
       "epochId": 497596,
       "tx": "0xbe7ed7b24edb8ebb1a86f8c99ae1b8bb09d5afc7e1b171af355a7329f4dca851",
       "earners": 1
+    },
+    {
+      "epochId": 497597,
+      "tx": "0xf069e2c34248bc963da71a5a3b8b720599464f53571408d767e5c0da768b17a0",
+      "earners": 1
+    },
+    {
+      "epochId": 497598,
+      "tx": "0x983787c53b1e0a803137dec1a9e6f613407f0de309ab3d42d6956aa79a531ca3",
+      "earners": 1
+    },
+    {
+      "epochId": 497599,
+      "tx": "0xf6f7b8dd1197e4ecf8bc42739da1297bfa2baf5055f38c253e27890009135aac",
+      "earners": 1
+    },
+    {
+      "epochId": 497600,
+      "tx": "0xe1af8e5049391d83d3f6a4228e02f9324f16ddf10a5dc0dee0d10365aad834a0",
+      "earners": 1
+    },
+    {
+      "epochId": 497601,
+      "tx": "0x0e52d005fdd36e1836ba72b722d7cd9229cb9673ebb0abcb1055d8ba052c858b",
+      "earners": 1
+    },
+    {
+      "epochId": 497602,
+      "tx": "0x71ebf980a9d749a24b52eed138bbc9c6b84a1069d66a1ea488cc544866ed4e75",
+      "earners": 1
+    },
+    {
+      "epochId": 497604,
+      "tx": "0xfc0b6eb4d5690eafb7779b3d062ad05102be88be3a5300048d12f586e96516f4",
+      "earners": 1
+    },
+    {
+      "epochId": 497605,
+      "tx": "0xfe48c0db435a93ede86554006f11c2ae9cb8cd51e5d3019aca167c18e0ff15b0",
+      "earners": 1
+    },
+    {
+      "epochId": 497606,
+      "tx": "0x191ddb4755170ca8ea2510197011ace4c3d179483087d2a413ec4ddc04aa1389",
+      "earners": 1
+    },
+    {
+      "epochId": 497607,
+      "tx": "0xabe551fe6693b96374e92e1346db18e4fabf05724715e951faf027575de08ac5",
+      "earners": 1
+    },
+    {
+      "epochId": 497608,
+      "tx": "0x2a0f78c14e310ea4b77a7ad73b7ba5f66a4d46f1880bb3362cf7fe16b621537c",
+      "earners": 1
+    },
+    {
+      "epochId": 497609,
+      "tx": "0xfab05c39eccfd43d7b61c3bec2fbad0446734aa9720834f52588f27f54cd815e",
+      "earners": 1
+    },
+    {
+      "epochId": 497610,
+      "tx": "0x5011772948d4050cca284f1446c72f85a5960afcaa9572d48c2cac2f4b3eb8fd",
+      "earners": 1
     }
   ]
 }

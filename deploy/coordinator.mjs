@@ -32,13 +32,17 @@ const CODE = {
 const CODE_TX = "0xd17ade10703f2c492e8fcf1543ed6723403a6ec2f1b14683ecf8b713bbf62c71";
 const REGISTRY_ID = "0x1693da11047c21d4995d5f2d71f09dc8f102368761c14d931a4a979c28117db7";
 const OP_HASH = scriptHash(OP);
-// Never select contract code cells as funding, even though the legacy ones are
-// OP-locked and untyped (this is what consumed them before).
-const PROTECTED = new Set(
-  Array.from({ length: 5 }, (_, i) => `0x6b6f4f43bff47259f6603b5658db61e3e350d7e98ad98639063f6073646f8173:0x${i.toString(16)}`),
-);
+// Contract code now lives under a dedicated code lock (see recover-code.mjs),
+// so funding selection can never consume it. No outpoint exclusions needed.
+const PROTECTED = new Set();
 const ORCH = process.env.ORCHESTRATOR_URL ?? "http://127.0.0.1:8080";
-const POOL = BigInt(process.env.POOL ?? "1000000000000000000");
+// Reward economics: each epoch pays every earning node
+//   credits = BASE_REWARD_CKB + points * CKB_PER_POINT   (in CKB)
+// where points = netPts + upPts. The reward IS the share cell capacity, so the
+// CREDITS a node sees equal the CKB it actually receives and scale with its
+// observation activity. BASE also covers the share cell's occupied capacity.
+const BASE_REWARD_CKB = BigInt(process.env.BASE_REWARD_CKB ?? "200");
+const CKB_PER_POINT = BigInt(process.env.CKB_PER_POINT ?? "10");
 const SHANNON = 100_000_000n;
 const CKB = (n) => "0x" + (BigInt(n) * SHANNON).toString(16);
 const SH = (bi) => "0x" + BigInt(bi).toString(16);
@@ -197,13 +201,15 @@ export async function runCoordinator() {
   const pLeaves = earners.map((e) => pointsLeaf(e.nodeId, e.netPts, e.upPts, e.bytes));
   const mroot = merkleRoot(pLeaves);
 
-  // Rewards ledger (share leaves) with pool split by points (fallback: equal).
-  const weights = earners.map((e) => BigInt(e.netPts + e.upPts));
-  const totalW = weights.reduce((a, b) => a + b, 0n);
-  const shares = earners.map((e, i) => {
-    const amount = totalW === 0n ? POOL / BigInt(earners.length) : (POOL * weights[i]) / totalW;
-    return { ...e, amount };
+  // Rewards ledger: credits proportional to each node's observation points,
+  // plus a base grant. amount is in shannons and is also the payout capacity.
+  const BASE = BASE_REWARD_CKB * SHANNON;
+  const RATE = CKB_PER_POINT * SHANNON;
+  const shares = earners.map((e) => {
+    const pts = BigInt(e.netPts + e.upPts);
+    return { ...e, amount: BASE + pts * RATE };
   });
+  const poolTotal = shares.reduce((a, s) => a + s.amount, 0n);
   const rLeaves = shares.map((s) => rewardLeaf(epochId, s.nodeId, s.wallet, s.netPts, s.upPts, s.bytes, s.amount));
   const rRoot = merkleRoot(rLeaves);
 
@@ -218,14 +224,15 @@ export async function runCoordinator() {
 
   const epochArgs = epochTypeArgs(epochId, REGISTRY_ID);
   const eType = { code_hash: CODE.epoch, hash_type: "data2", args: epochArgs };
-  const edata = `0x${Buffer.from(encodeEpoch(epochId, REGISTRY_ID, mroot, evHash, POOL, rRoot)).toString("hex")}`;
+  const edata = `0x${Buffer.from(encodeEpoch(epochId, REGISTRY_ID, mroot, evHash, poolTotal, rRoot)).toString("hex")}`;
 
   const outputs = [{ capacity: CKB(300), lock: OP, type: eType }];
   const datas = [edata];
   for (const s of shares) {
     const lock = { code_hash: CODE.rewards, hash_type: "data2", args: rewardsLockArgs(epochId, rRoot) };
     datas.push(`0x${Buffer.from(encodeShare(epochId, s.nodeId, s.wallet, s.netPts, s.upPts, s.bytes, s.amount)).toString("hex")}`);
-    outputs.push({ capacity: CKB(300), lock });
+    // The share cell carries the node's credits as its capacity (real payout).
+    outputs.push({ capacity: SH(s.amount), lock });
   }
 
   const need = outputs.reduce((a, o) => a + BigInt(o.capacity), 0n) + 3n * SHANNON;
