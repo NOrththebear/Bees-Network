@@ -104,6 +104,146 @@
       "epochId": 497610,
       "tx": "0x5011772948d4050cca284f1446c72f85a5960afcaa9572d48c2cac2f4b3eb8fd",
       "earners": 1
+    },
+    {
+      "epochId": 497611,
+      "tx": "0xbd4d4ba3252ee5c68bd2bb2f72824f366bcafff4793bcb9d9feb90672e39e88d",
+      "earners": 1
+    },
+    {
+      "epochId": 497612,
+      "tx": "0x276cb5eceb0d467374d1bd176a1c57888ff678aa5074e7176f1460a47cbc9714",
+      "earners": 1
+    },
+    {
+      "epochId": 497613,
+      "tx": "0xcacdc38fbfd27ed838610a6f5a068489584b0813b82f846dab9e6893de76f7e6",
+      "earners": 1
+    },
+    {
+      "epochId": 497614,
+      "tx": "0x290407b88e3ac02037779b3d5a8f1de8fd64469ec7bb848d16e93f62c705a6e0",
+      "earners": 1
+    },
+    {
+      "epochId": 497615,
+      "tx": "0x6997cc0d0b1bcab0642f82c7f02cde9d07ae6e2b1d989314d821e29ebe1e33ff",
+      "earners": 1
+    },
+    {
+      "epochId": 497616,
+      "tx": "0xfa10d4dd7eb632bc159a2a010846cc118b1f11a5ab010411c1cf404109612401",
+      "earners": 1
+    },
+    {
+      "epochId": 497617,
+      "tx": "0xb6d3e4e66df3b0a3f19e0b7d395cadb39b7e5a3107503e10154b302d71b7d519",
+      "earners": 1
+    },
+    {
+      "epochId": 497618,
+      "tx": "0x17d1d0db034640a238497198144a29b2921d824ad3ac5a695f1fff3f33f7831a",
+      "earners": 1
+    },
+    {
+      "epochId": 497619,
+      "tx": "0xbfad9543b80dd2d13979bf198c81dde31df43e66516d7086ca5985018a0c302e",
+      "earners": 1
+    },
+    {
+      "epochId": 497620,
+      "tx": "0xb3d54d513f89e1335458b9acdbbc9a82c8fc672c695f66d0e528ca0dc94af69c",
+      "earners": 1
+    },
+    {
+      "epochId": 497621,
+      "tx": "0xd4f6000142563843410c8a97cd5ecc47a1102c4b353c0800fd8ba668b271f0b8",
+      "earners": 1
+    },
+    {
+      "epochId": 497622,
+      "tx": "0x2186a241459a00354964d6b42ba77f139fd945d7fe6cceb8b4bbc9e39aba2984",
+      "earners": 1
+    },
+    {
+      "epochId": 497623,
+      "tx": "0x1ac2fd8bdc33e686fc346315b351e2380c4e5d4f56dd5099b991f82f408c5f49",
+      "earners": 1
+    },
+    {
+      "epochId": 497624,
+      "tx": "0x679ed0de69c8edc79bddd9ba6e387c37526166929ca438a430674493a8d99826",
+      "earners": 1
+    },
+    {
+      "epochId": 497625,
+      "tx": "0x395a566cb90209a8766ce71ab09b7eaa0ba798e28a0f3683d46a7b13856430c8",
+      "earners": 1
+    },
+    {
+      "epochId": 497626,
+      "tx": "0x4d0af8cf2e07b28c00a6d520b175b1810be0ad32228c40fbfeaaedeee2770c46",
+      "earners": 1
+    },
+    {
+      "epochId": 497627,
+      "tx": "0x869588b3b96671d4b2aa0bcd5e3caad82e3ed92de93b1d461bc7e658b1496699",
+      "earners": 1
+    },
+    {
+      "epochId": 497628,
+      "tx": "0x35b9e6975f4fc33aad18e2987d450a8062054bc45df02715726766cced1f718b",
+      "earners": 1
+    },
+    {
+      "epochId": 497629,
+      "tx": "0xe648852f484415d0328e902817a6f188e487ba56a67c6bcbd262c5f3982fee9e",
+      "earners": 1
+    },
+    {
+      "epochId": 497630,
+      "tx": "0x929164c6e8f41de52994683332a349ac5d2861a610096682fd6c24df17f84784",
+      "earners": 1
+    },
+    {
+      "epochId": 497631,
+      "tx": "0x096799eeb9f4645d53915a06891249d06b70b780c5c58fb3527a1d945c898e6f",
+      "earners": 1
+    },
+    {
+      "epochId": 497632,
+      "tx": "0xefab17e7ed7f2a229bdb9eb6bad200e95de4e7984b4a01d16476a22f3d24fc07",
+      "earners": 1
+    },
+    {
+      "epochId": 497633,
+      "tx": "0x2b29991ee8e5039d9c96d09e49bf95006a53628fcb6984fc5346ac9089f28706",
+      "earners": 1
+    },
+    {
+      "epochId": 497634,
+      "tx": "0x621a43ea5dbcd82ad9bf43aca335ffb7b7128b7e98f060e74f1da1a89ab08680",
+      "earners": 1
+    },
+    {
+      "epochId": 497635,
+      "tx": "0x4fc9963282226052a98a90eb2eb2347519d8d6fc08ddd47a918cbc4fffac867e",
+      "earners": 1
+    },
+    {
+      "epochId": 497636,
+      "tx": "0x573ab79b9688f0aaa5aa3ae755e2aa48afeb3c8be0de4aea048d32b84e612a1c",
+      "earners": 1
+    },
+    {
+      "epochId": 497637,
+      "tx": "0xf488a402b67ba53b960804494c49bf289133e3f5b7a6f8b1236888323ef3d4bb",
+      "earners": 1
+    },
+    {
+      "epochId": 497638,
+      "tx": "0x132a626acda278673aa9d6f8866b5d96ba8953dd8b4c7721bff8f07f9a8e7c7f",
+      "earners": 1
     }
   ]
 }
